@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>RecipeVault</title>
+
+    <link rel="stylesheet" href="style.css">
+    <script src="script.js" defer></script>
+</head>
+
+<body>
+
+    <!-- ==================================================
+         HEADER AND NAVIGATION
+    =================================================== -->
+
+    <a href="#mainContent" class="skip-link">Skip to content</a>
+
+    <header>
+        <p class="site-name">RecipeVault</p>
+
+        <nav aria-label="Main navigation">
+            <button id="searchPageButton" type="button">
+                Search Recipes
+            </button>
+
+            <button id="myRecipesButton" type="button">
+                My Recipes
+            </button>
+
+            <button id="addRecipeButton" type="button">
+                Add Recipe
+            </button>
+        </nav>
+    </header>
+
+    <main id="mainContent">
+
+        <h1 id="pageHeading" tabindex="-1">Search Recipes</h1>
+
+        <p class="prototype-note">
+            Class prototype: you are using the demo author account.
+            Recipes are saved only in this browser.
+        </p>
+
+        <p id="statusMessage" role="status" aria-live="polite"></p>
+
+
+        <!-- ==================================================
+             SEARCH AND RECIPE LIST
+        =================================================== -->
+
+        <section id="recipeListSection">
+
+            <form id="searchForm" novalidate>
+                <label for="searchInput">Recipe name</label>
+
+                <div class="search-controls">
+                    <input
+                        id="searchInput"
+                        type="search"
+                        placeholder="Try chicken or pasta"
+                        aria-describedby="searchHelp searchError"
+                    >
+
+                    <button type="submit">Search</button>
+
+                    <button
+                        id="showAllButton"
+                        type="button"
+                        class="secondary-button"
+                    >
+                        Show All
+                    </button>
+                </div>
+
+                <p id="searchHelp" class="help-text">
+                    Search using a full or partial recipe name.
+                </p>
+
+                <p id="searchError" class="error-message" role="alert"></p>
+            </form>
+
+            <h2 id="resultsHeading">Available Recipes</h2>
+
+            <p id="recipeCount"></p>
+
+            <div id="recipeCards" class="recipe-grid"></div>
+        </section>
+
+
+        <!-- ==================================================
+             ADD AND EDIT FORM
+        =================================================== -->
+
+        <section id="recipeFormSection" hidden>
+
+            <p>
+                All fields are required. Enter ingredients and instructions
+                on separate lines.
+            </p>
+
+            <form id="recipeForm" novalidate>
+
+                <p
+                    id="formError"
+                    class="error-message"
+                    role="alert"
+                    tabindex="-1"
+                ></p>
+
+                <label for="recipeTitle">Recipe name</label>
+
+                <input
+                    id="recipeTitle"
+                    type="text"
+                    maxlength="120"
+                    aria-describedby="formError"
+                    required
+                >
+
+                <div class="form-row">
+                    <div>
+                        <label for="recipeServings">Servings</label>
+
+                        <input
+                            id="recipeServings"
+                            type="number"
+                            min="1"
+                            max="1000"
+                            step="1"
+                            value="4"
+                            aria-describedby="formError"
+                            required
+                        >
+                    </div>
+
+                    <div>
+                        <label for="recipeVisibility">Visibility</label>
+
+                        <select id="recipeVisibility">
+                            <option value="private">Private</option>
+                            <option value="public">Public</option>
+                        </select>
+                    </div>
+                </div>
+
+                <label for="recipeIngredients">Ingredients</label>
+
+                <textarea
+                    id="recipeIngredients"
+                    rows="5"
+                    placeholder="2 cups rice&#10;1 tablespoon olive oil"
+                    aria-describedby="formError"
+                    required
+                ></textarea>
+
+                <label for="recipeInstructions">Instructions</label>
+
+                <textarea
+                    id="recipeInstructions"
+                    rows="6"
+                    placeholder="Rinse the rice.&#10;Cook until tender."
+                    aria-describedby="formError"
+                    required
+                ></textarea>
+
+                <p id="revisionMessage" class="help-text"></p>
+
+                <div class="button-row">
+                    <button id="saveRecipeButton" type="submit">
+                        Save Recipe
+                    </button>
+
+                    <button
+                        id="cancelButton"
+                        type="button"
+                        class="secondary-button"
+                    >
+                        Cancel
+                    </button>
+                </div>
+
+            </form>
+        </section>
+
+
+        <!-- ==================================================
+             RECIPE DETAILS
+        =================================================== -->
+
+        <section id="recipeDetailsSection" hidden>
+
+            <p id="recipeDetailsSummary"></p>
+
+            <h2>Ingredients</h2>
+            <p id="recipeDetailsIngredients" class="multiline-text"></p>
+
+            <h2>Instructions</h2>
+            <p id="recipeDetailsInstructions" class="multiline-text"></p>
+
+            <div class="button-row">
+                <button id="editRecipeButton" type="button">
+                    Edit Recipe
+                </button>
+
+                <button
+                    id="backButton"
+                    type="button"
+                    class="secondary-button"
+                >
+                    Back to Recipes
+                </button>
+            </div>
+
+            <div id="revisionHistorySection" hidden>
+                <h2>Previous Published Revisions</h2>
+
+                <div id="revisionHistory"></div>
+            </div>
+
+        </section>
+
+    </main>
+
+
+    <!-- ==================================================
+         FOOTER
+    =================================================== -->
+
+    <footer>
+        <p>RecipeVault — Software Engineering Team Project</p>
+    </footer>
+
+</body>
+</html>
