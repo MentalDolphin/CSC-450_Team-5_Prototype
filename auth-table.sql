@@ -1,4 +1,8 @@
--- This is for adding a user
+-- Ensure RecipeVault database is set up and selected if not already.
+create database if not exists RecipeVault;
+use database RecipeVault;
+
+-- This holds user authentication data.
 
 create table AuthTable (
   UserId int AUTO_INCREMENT,
