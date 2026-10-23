@@ -72,7 +72,14 @@ nav {
    BUTTONS AND KEYBOARD FOCUS
 ================================================== */
 
-button {
+a:has(.linkButton) {
+    /* This link should only wrap the div, so we are exempting it from link styling. */
+    all: inherit;
+    /* This makes Tab focusing look the correct shape. */
+    border-radius: 6px;
+}
+
+button, div.linkButton {
     min-height: 44px;
     padding: 10px 18px;
 
@@ -86,7 +93,7 @@ button {
     cursor: pointer;
 }
 
-button:hover {
+button:hover, div.linkButton:hover {
     background-color: #193a2b;
     border-color: #193a2b;
 }
@@ -300,7 +307,6 @@ footer {
     left: 10px;
     z-index: 10;
 
-    padding: 10px;
     background-color: white;
     color: #263c30;
 }

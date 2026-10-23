@@ -1,14 +1,35 @@
+<?php
+
+// This performs the authentication check before serving the page.
+// The original page continues unmodified below.
+
+require("auth.php");
+
+if (isset($_SESSION['email_address'])) {
+    // Session is valid, serve the page.
+//    echo "<h2>You are logged in.</h2>";
+//    echo "<p>Your email address is: " . $_SESSION['email_address'] . "</p>";
+//    echo "<p>Your uid is: " . $_SESSION['uid'] . "</p>";
+} else {
+    // Session is invalid, redirect to login page.
+//    $url = parse_url(
+    header("HTTP/1.1 302 Found");
+    header("Location: login");
+//    echo "<h2>You are not logged in.</h2>";
+}
+
+?>
 <!DOCTYPE html>
 <html lang="en">
 
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 
     <title>RecipeVault</title>
 
-    <link rel="stylesheet" href="resources/style.css">
-    <script src="script.js" defer></script>
+    <link rel="stylesheet" href="resources/style.css" />
+    <script src="script.js" defer="defer"></script>
 </head>
 
 <body>
@@ -34,6 +55,9 @@
             <button id="addRecipeButton" type="button">
                 Add Recipe
             </button>
+            <a href="logout">
+                <div class="linkButton">Log out</div>
+            </a>
         </nav>
     </header>
 
