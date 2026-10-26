@@ -1,0 +1,2 @@
+# Don't allow serving this directory over HTTP for security reasons.
+Require all denied
