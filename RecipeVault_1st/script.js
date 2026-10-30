@@ -86,6 +86,12 @@ const searchForm = document.getElementById("searchForm");
 const searchInput = document.getElementById("searchInput");
 const searchError = document.getElementById("searchError");
 
+const advancedSearchButton = document.getElementById("advancedSearchButton");
+const advancedSearchPanel = document.getElementById("advancedSearchPanel");
+const advancedSearchForm = document.getElementById("advancedSearchForm");
+const advancedIngredients = document.getElementById("advancedIngredients");
+const advancedSearchError = document.getElementById("advancedSearchError");
+
 const resultsHeading = document.getElementById("resultsHeading");
 const recipeCount = document.getElementById("recipeCount");
 const recipeCards = document.getElementById("recipeCards");
@@ -268,6 +274,7 @@ function canViewRecipe(recipe) {
 function openRecipeList(onlyMyRecipes = false) {
     showingMyRecipes = onlyMyRecipes;
 
+    resetAdvancedSearch();
     searchInput.value = "";
     searchError.textContent = "";
     searchInput.removeAttribute("aria-invalid");
@@ -284,7 +291,7 @@ function openRecipeList(onlyMyRecipes = false) {
 }
 
 
-function displayRecipes(searchTerm = "") {
+function displayRecipes(searchTerm = "", ingredientTerms = []) {
     recipeCards.replaceChildren();
 
     const normalizedSearch = searchTerm.trim().toLowerCase();
@@ -303,11 +310,19 @@ function displayRecipes(searchTerm = "") {
         const matchesIngredient =
             recipe.ingredients.toLowerCase().includes(normalizedSearch);
 
-        return accessible && belongsInCollection &&
-            (matchesName || matchesIngredient);
+        // Literal string comparison only: no HTML, SQL, eval, or user-built regex.
+        const matchesSearch = ingredientTerms.length > 0
+            ? ingredientTerms.every(function (ingredient) {
+                return recipe.ingredients.toLowerCase().includes(ingredient);
+            })
+            : matchesName || matchesIngredient;
+
+        return accessible && belongsInCollection && matchesSearch;
     });
 
-    if (searchTerm !== "") {
+    if (ingredientTerms.length > 0) {
+        resultsHeading.textContent = "Recipes containing all: " + ingredientTerms.join(", ");
+    } else if (searchTerm !== "") {
         resultsHeading.textContent = 'Results for "' + searchTerm + '"';
     } else if (showingMyRecipes) {
         resultsHeading.textContent = "Your Collection";
@@ -402,7 +417,76 @@ function searchRecipes(event) {
     searchError.textContent = "";
     searchInput.removeAttribute("aria-invalid");
 
+    resetAdvancedSearch();
     displayRecipes(searchTerm);
+    showStatus(recipeCount.textContent);
+}
+
+
+/* ==================================================
+   ADVANCED INGREDIENT SEARCH
+================================================== */
+
+function parseIngredientSearch(value) {
+    // Bounds are checked in JavaScript as well as HTML. Validation improves
+    // input quality; safe DOM rendering is the actual XSS protection.
+    if (typeof value !== "string" || value.length > 1000) {
+        throw new Error("Enter no more than 1,000 characters.");
+    }
+
+    const terms = value.split(/[,\r\n]+/)
+        .map(function (term) { return term.trim().replace(/\s+/g, " ").toLowerCase(); })
+        .filter(function (term) { return term !== ""; });
+
+    if (terms.length === 0) {
+        throw new Error("Enter at least one ingredient.");
+    }
+    if (terms.length > 20) {
+        throw new Error("Enter no more than 20 ingredients.");
+    }
+    if (terms.some(function (term) { return term.length > 60; })) {
+        throw new Error("Each ingredient must be 60 characters or fewer.");
+    }
+
+    // Accept letters, numbers, spaces and common ingredient punctuation.
+    // Apostrophes remain valid (e.g. baker's yeast); SQL keyword blacklists
+    // are not a substitute for parameterized queries in a future backend.
+    if (terms.some(function (term) {
+        return !/^[\p{L}\p{M}\p{N} '\u2019().%/\-]+$/u.test(term) ||
+            !/[\p{L}\p{N}]/u.test(term);
+    })) {
+        throw new Error("Use ingredient names with letters, numbers, spaces, or common punctuation (apostrophes, hyphens, parentheses, periods, % and /).");
+    }
+
+    return [...new Set(terms)];
+}
+
+function resetAdvancedSearch() {
+    advancedIngredients.value = "";
+    advancedIngredients.removeAttribute("aria-invalid");
+    advancedSearchError.textContent = "";
+    advancedSearchPanel.hidden = true;
+    advancedSearchButton.setAttribute("aria-expanded", "false");
+}
+
+function searchByIngredients(event) {
+    event.preventDefault();
+    let terms;
+    try {
+        terms = parseIngredientSearch(advancedIngredients.value);
+    } catch (error) {
+        advancedSearchError.textContent = error.message;
+        advancedIngredients.setAttribute("aria-invalid", "true");
+        advancedIngredients.focus();
+        return;
+    }
+
+    advancedSearchError.textContent = "";
+    advancedIngredients.removeAttribute("aria-invalid");
+    searchInput.value = "";
+    searchError.textContent = "";
+    searchInput.removeAttribute("aria-invalid");
+    displayRecipes("", terms);
     showStatus(recipeCount.textContent);
 }
 
@@ -772,6 +856,28 @@ editRecipeButton.addEventListener("click", function () {
 });
 
 
+advancedSearchButton.addEventListener("click", function () {
+    advancedSearchPanel.hidden = !advancedSearchPanel.hidden;
+    advancedSearchButton.setAttribute("aria-expanded", String(!advancedSearchPanel.hidden));
+    if (!advancedSearchPanel.hidden) {
+        advancedIngredients.focus();
+    }
+});
+
+advancedSearchForm.addEventListener("submit", searchByIngredients);
+document.getElementById("clearAdvancedSearchButton").addEventListener("click", function () {
+    openRecipeList(showingMyRecipes);
+    advancedSearchButton.focus();
+});
+
+// Direct clicks also work in previews that disable native form submission.
+document.getElementById("basicSearchButton").addEventListener("click", searchRecipes);
+document.getElementById("searchIngredientsButton").addEventListener("click", searchByIngredients);
+searchInput.addEventListener("keydown", function (event) {
+    if (event.key === "Enter") {
+        searchRecipes(event);
+    }
+});
 searchForm.addEventListener("submit", searchRecipes);
 
 recipeForm.addEventListener("submit", submitRecipeForm);

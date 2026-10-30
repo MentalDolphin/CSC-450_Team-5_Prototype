@@ -335,3 +335,19 @@ footer {
         flex-basis: 100%;
     }
 }
+
+/* ==================================================
+   ADVANCED SEARCH
+================================================== */
+
+#advancedSearchPanel {
+    margin-top: 16px;
+    padding: 24px;
+    background-color: white;
+    border: 1px solid #cad4c8;
+    border-radius: 8px;
+}
+
+#advancedSearchHeading {
+    margin-top: 0;
+}

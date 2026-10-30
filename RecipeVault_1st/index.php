@@ -90,7 +90,7 @@ if (isset($_SESSION['email_address'])) {
                         aria-describedby="searchHelp searchError"
                     >
 
-                    <button type="submit">Search</button>
+                    <button id="basicSearchButton" type="button">Search</button>
 
                     <button
                         id="showAllButton"
@@ -107,6 +107,31 @@ if (isset($_SESSION['email_address'])) {
 
                 <p id="searchError" class="error-message" role="alert"></p>
             </form>
+
+            <button id="advancedSearchButton" type="button"
+                class="secondary-button" aria-expanded="false"
+                aria-controls="advancedSearchPanel">Advanced Search</button>
+
+            <section id="advancedSearchPanel" hidden aria-labelledby="advancedSearchHeading">
+                <h2 id="advancedSearchHeading">Search by Ingredients</h2>
+                <form id="advancedSearchForm" novalidate>
+                    <label for="advancedIngredients">Ingredients to include</label>
+                    <textarea id="advancedIngredients" rows="3" maxlength="1000"
+                        placeholder="chicken, lemon, olive oil"
+                        aria-describedby="advancedSearchHelp advancedSearchError" required></textarea>
+                    <p id="advancedSearchHelp" class="help-text">
+                        Separate ingredients with commas or new lines. Recipes must contain
+                        all ingredients. Matches ignore capitalization and allow partial names.
+                        Enter up to 20 ingredients, each up to 60 characters (1,000 characters total).
+                    </p>
+                    <p id="advancedSearchError" class="error-message" role="alert"></p>
+                    <div class="button-row">
+                        <button id="searchIngredientsButton" type="button">Search Ingredients</button>
+                        <button id="clearAdvancedSearchButton" type="button"
+                            class="secondary-button">Clear Search</button>
+                    </div>
+                </form>
+            </section>
 
             <h2 id="resultsHeading">Available Recipes</h2>
 
