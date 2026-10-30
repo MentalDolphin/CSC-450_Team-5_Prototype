@@ -870,6 +870,14 @@ document.getElementById("clearAdvancedSearchButton").addEventListener("click", f
     advancedSearchButton.focus();
 });
 
+// Direct clicks also work in previews that disable native form submission.
+document.getElementById("basicSearchButton").addEventListener("click", searchRecipes);
+document.getElementById("searchIngredientsButton").addEventListener("click", searchByIngredients);
+searchInput.addEventListener("keydown", function (event) {
+    if (event.key === "Enter") {
+        searchRecipes(event);
+    }
+});
 searchForm.addEventListener("submit", searchRecipes);
 
 recipeForm.addEventListener("submit", submitRecipeForm);

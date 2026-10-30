@@ -90,7 +90,7 @@ if (isset($_SESSION['email_address'])) {
                         aria-describedby="searchHelp searchError"
                     >
 
-                    <button type="submit">Search</button>
+                    <button id="basicSearchButton" type="button">Search</button>
 
                     <button
                         id="showAllButton"
@@ -126,7 +126,7 @@ if (isset($_SESSION['email_address'])) {
                     </p>
                     <p id="advancedSearchError" class="error-message" role="alert"></p>
                     <div class="button-row">
-                        <button type="submit">Search Ingredients</button>
+                        <button id="searchIngredientsButton" type="button">Search Ingredients</button>
                         <button id="clearAdvancedSearchButton" type="button"
                             class="secondary-button">Clear Search</button>
                     </div>
