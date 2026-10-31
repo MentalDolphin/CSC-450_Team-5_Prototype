@@ -1,6 +1,6 @@
 -- Ensure RecipeVault database is set up and selected if not already.
 create database if not exists RecipeVault;
-use database RecipeVault;
+use RecipeVault;
 
 -- This holds user authentication data.
 
