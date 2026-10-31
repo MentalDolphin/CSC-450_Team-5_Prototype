@@ -123,6 +123,16 @@ create function recipe_new_revision(recipe_id int) returns int not deterministic
 end //
 delimiter ;
 
+delimiter //
+create function ingredient_id(ingredient_name varchar(128)) returns int not deterministic begin
+  declare outval int;
+  select IngredientId
+    into outval
+    from Ingredients
+    where IngredientName = ingredient_name;
+  return outval;
+end //
+delimiter ;
 
 -- Set up lookup user
 
@@ -203,13 +213,13 @@ insert ignore into Ingredients(IngredientName) values
 insert into RecipeIngredients(RecipeId, RecipeRevisionId, IngredientId,
                               IngredientCount, IngredientUnit) values
   (@lcRecipeId, @lcRecipeRevId,
-   (select IngredientId from Ingredients where IngredientName = 'chicken breasts'),
+   ingredient_id('chicken breasts'),
    2, null),
   (@lcRecipeId, @lcRecipeRevId,
-   (select IngredientId from Ingredients where IngredientName = 'lemons'),
+   ingredient_id('lemons'),
    1, null),
   (@lcRecipeId, @lcRecipeRevId,
-   (select IngredientId from Ingredients where IngredientName = 'olive oil'),
+   ingredient_id('olive oil'),
    1, 'tbsp');
 
 -- Build cached JSON data for this revision
