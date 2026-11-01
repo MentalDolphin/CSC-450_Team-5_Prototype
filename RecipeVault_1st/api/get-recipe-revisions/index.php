@@ -29,7 +29,7 @@ if (isset($_SESSION["email_address"])) {
         $uid_stmt = $recipe_conn->prepare($check_uid);
         $uid_stmt->bindParam(1, $_SESSION['email_address']);
         $uid_stmt_status = $uid_stmt->execute();
-        $uid = $uid_stmt->fetchAll()[0][0];
+        $uid = $uid_stmt->fetch()[0];
 
         // Part 2: Check that either UID matches, or it is public
         $rec_meta_stmt = $recipe_conn->prepare($recipe_metadata_check);
@@ -38,7 +38,7 @@ if (isset($_SESSION["email_address"])) {
         if ($rec_meta_stmt->rowCount() == 1) {
             // Here we handle it.
             $recipe_is_valid = true;
-            $recipe_data = $rec_meta_stmt->fetchAll()[0];
+            $recipe_data = $rec_meta_stmt->fetch();
             $rec_uid = $recipe_data["UserId"];
             $rec_is_public = $recipe_data["IsPublic"];
             $rec_latest_public = $recipe_data["LatestPublishedRevisionId"];
