@@ -5,7 +5,11 @@ require("../../auth.php");
 
 if (isset($_SESSION["email_address"])) {
     $recipeId = $_GET["id"];
+
     require("../../private/do-recipe-dbconn.php");
+
+//    // Enable for testing, and comment out the line setting output to application/json
+//    header('Content-Type: text/plain; charset=utf-8');
 
     // Determines whether output is blank
     $recipe_is_valid = false;
@@ -15,7 +19,7 @@ if (isset($_SESSION["email_address"])) {
     $rec_private_revisions = null;
 
     $check_uid = 'select UserId from AuthTable where EmailAddr = ?;';
-    $recipe_metadata_check = 'select RecipeId, UserId, IsPublic, LatestPublishedRevisionId from AuthTable where RecipeId = ?;';
+    $recipe_metadata_check = 'select RecipeId, UserId, IsPublic, LatestPublishedRevisionId from Recipes where RecipeId = ?;';
     $recipe_revcheck = 'select RecipeId, RecipeRevisionId from RecipeData where RecipeId = ? order by RecipeRevisionId;';
     // Use when not authorized to access private revisions
     $recipe_revcheck_public_only = 'select RecipeId, RecipeRevisionId from RecipeData where RecipeId = ? and RecipeRevisionId <= ? order by RecipeRevisionId;';
@@ -33,8 +37,8 @@ if (isset($_SESSION["email_address"])) {
         $rm_stmt_status = $rec_meta_stmt->execute();
         if ($rec_meta_stmt->rowCount() == 1) {
             // Here we handle it.
-            $recipe_is_valid = true
-            $recipe_data = $rec_meta_stmt.fetchAll()[0];
+            $recipe_is_valid = true;
+            $recipe_data = $rec_meta_stmt->fetchAll()[0];
             $rec_uid = $recipe_data["UserId"];
             $rec_is_public = $recipe_data["IsPublic"];
             $rec_latest_public = $recipe_data["LatestPublishedRevisionId"];
@@ -47,13 +51,14 @@ if (isset($_SESSION["email_address"])) {
             } else {
                 // Part 3: Find allowed revisions
                 if ($rec_uid == $uid) {
-                    $rec_rc_stmt = $recipe_conn->prepare($used_revcheck);
+                    $rec_rc_stmt = $recipe_conn->prepare($recipe_revcheck);
                     $rec_rc_stmt->bindParam(1, $recipeId);
                 } else {
-                    $rec_rc_stmt = $recipe_conn->prepare($used_revcheck_public_only);
+                    $rec_rc_stmt = $recipe_conn->prepare($recipe_revcheck_public_only);
                     $rec_rc_stmt->bindParam(1, $recipeId);
                     $rec_rc_stmt->bindParam(2, $rec_latest_public);
                 }
+
 
                 $rec_rc_stmt_status = $rec_rc_stmt->execute();
                 foreach ($rec_rc_stmt->fetchAll() as $row) {
@@ -87,17 +92,20 @@ if (isset($_SESSION["email_address"])) {
             $recipe_rev_data["privateIntendedRevisions"] = $rec_private_revisions;
             unset($recipe_rev_data["privateRevisions"]);
         }
+
+        $outJson = json_encode($recipe_rev_data);
+
+        header("HTTP/1.1 200 OK");
+        header("Content-Type: application/json; charset=utf-8");
+
+        echo $outJson;
+
     } catch (PDOException $exc) {
+        header('Content-Type: text/plain; charset=utf-8');
         echo $exc->getMessage();
         exit;
     }
 
-    $outJson = json_encode($recipe_rev_data);
-
-    header("HTTP/1.1 200 OK");
-    header("Content-Type: application/json; charset=utf-8");
-
-    print($outJson);
 } else {
     header("HTTP/1.1 403 Forbidden");
     header("Content-Type: application/json; charset=utf-8");
