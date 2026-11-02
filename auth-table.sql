@@ -13,22 +13,14 @@ create table AuthTable (
   primary key (UserId)
 );
 
--- This is procedure for setting up an email
-
-select random_bytes(16) into @salt;
-insert into AuthTable(EmailAddr, PassHash, Salt) values
-  ('johndoe@example.com', kdf('Password01', @salt), @salt)
-;
-
-
 -- Password check procedure
 delimiter //
 create procedure check_pass(in email_addr varchar(128),
                             in password varchar(128),
                             out user_id int) begin
-  declare salt type of AuthTable.Salt;
+  declare mysalt type of AuthTable.Salt;
   select Salt
-    into salt
+    into mysalt
     from AuthTable
     where EmailAddr = email_addr;
   select UserId
@@ -49,6 +41,28 @@ create procedure add_user(in email_addr varchar(128),
     (email_addr, kdf(password, salt), salt);
 end //
 delimiter ;
+
+-- User lookup procedure
+delimiter //
+create function lookup_user(email_addr varchar(128)) returns int not deterministic begin
+  declare uid int;
+  select UserId
+    into uid
+    from AuthTable
+    where EmailAddr = email_addr;
+  return uid;
+end //
+delimiter ;
+
+-- This is how to set up an email
+
+select random_bytes(16) into @salt;
+insert into AuthTable(EmailAddr, PassHash, Salt) values
+  ('johndoe@example.com', kdf('Password01', @salt), @salt)
+;
+
+-- Add second test user
+call add_user('janedoe@example.com', 'Password02');
 
 -- Set up auth user
 -- Note: Please fill in the password (where it says FILL_ME_PLEASE), and use it for authentication in private/do-login-dbconn.php

@@ -191,7 +191,7 @@ unlock tables;
 start transaction;
 insert into Recipes(UserId, RecipeName, IsPublic) values
   -- This assumes the test user is initialized at 1, can be modified to look it up directly.
-  (1, 'Lemon Chicken', true);
+  (lookup_user('johndoe@example.com'), 'Lemon Chicken', true);
 
 -- Note: This returns the AUTO_INCREMENT value of the first row inserted above.
 select last_insert_id() into @lcRecipeId;
@@ -229,6 +229,101 @@ call build_recipe_json(@lcRecipeId, @lcRecipeRevId);
 update Recipes
   set LatestPublishedRevisionId = @lcRecipeRevId
   where RecipeId = @lcRecipeId;
+update Recipes
+  set LatestRevisionId = @lcRecipeRevId
+  where RecipeId = @lcRecipeId;
+
+commit;
+
+-- This is test recipe 2 (public recipe owned by second user).
+start transaction;
+
+insert into Recipes(UserId, RecipeName, IsPublic) values
+  -- This assumes the test user is initialized at 1, can be modified to look it up directly.
+  (lookup_user('janedoe@example.com'), 'Tomato Basil Pasta', true);
+
+-- Note: This returns the AUTO_INCREMENT value of the first row inserted above.
+select last_insert_id() into @lcRecipeId;
+select recipe_new_revision(@lcRecipeId) into @lcRecipeRevId;
+
+insert into RecipeData(RecipeId, RecipeRevisionId, NumServings, Instructions) values
+  (@lcRecipeId, @lcRecipeRevId, 2,
+   'Boil the pasta.\n'
+   'Cook the tomatoes in a separate pan.\n'
+   'Combine the pasta, tomatoes, and basil.');
+
+-- This will ignore those that fail due to duplicates.
+-- I am using the plural form of the name here.
+insert ignore into Ingredients(IngredientName) values
+  ('pasta'),
+  ('tomatoes'),
+  ('basil leaves');
+
+insert into RecipeIngredients(RecipeId, RecipeRevisionId, IngredientId,
+                              IngredientCount, IngredientUnit) values
+  (@lcRecipeId, @lcRecipeRevId,
+   ingredient_id('pasta'),
+   200, 'g'),
+  (@lcRecipeId, @lcRecipeRevId,
+   ingredient_id('tomatoes'),
+   2, null),
+  (@lcRecipeId, @lcRecipeRevId,
+   ingredient_id('basil leaves'),
+   6, null);
+
+-- Build cached JSON data for this revision
+call build_recipe_json(@lcRecipeId, @lcRecipeRevId);
+
+-- Mark the latest revision
+update Recipes
+  set LatestPublishedRevisionId = @lcRecipeRevId
+  where RecipeId = @lcRecipeId;
+update Recipes
+  set LatestRevisionId = @lcRecipeRevId
+  where RecipeId = @lcRecipeId;
+
+commit;
+
+-- This is test recipe 3 (private recipe owned by test user 1)
+start transaction;
+insert into Recipes(UserId, RecipeName, IsPublic) values
+  -- This assumes the test user is initialized at 1, can be modified to look it up directly.
+  (lookup_user('johndoe@example.com'), 'Weekend Pancakes', false);
+
+-- Note: This returns the AUTO_INCREMENT value of the first row inserted above.
+select last_insert_id() into @lcRecipeId;
+select recipe_new_revision(@lcRecipeId) into @lcRecipeRevId;
+
+insert into RecipeData(RecipeId, RecipeRevisionId, NumServings, Instructions) values
+  (@lcRecipeId, @lcRecipeRevId, 4,
+   'Mix the ingredients.\n'
+   'Pour small portions onto a warm skillet.\n'
+   'Cook both sides until done.');
+
+-- This will ignore those that fail due to duplicates.
+-- I am using the plural form of the name here.
+insert ignore into Ingredients(IngredientName) values
+  ('flour'),
+  ('milk'),
+  ('eggs');
+
+insert into RecipeIngredients(RecipeId, RecipeRevisionId, IngredientId,
+                              IngredientCount, IngredientUnit) values
+  (@lcRecipeId, @lcRecipeRevId,
+   ingredient_id('flour'),
+   1, 'cup'),
+  (@lcRecipeId, @lcRecipeRevId,
+   ingredient_id('milk'),
+   1, 'cup'),
+  (@lcRecipeId, @lcRecipeRevId,
+   ingredient_id('eggs'),
+   1, null);
+
+-- Build cached JSON data for this revision
+call build_recipe_json(@lcRecipeId, @lcRecipeRevId);
+
+-- Mark the latest revision
+-- No public revision marker because it is private
 update Recipes
   set LatestRevisionId = @lcRecipeRevId
   where RecipeId = @lcRecipeId;
