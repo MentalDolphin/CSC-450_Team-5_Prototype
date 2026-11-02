@@ -64,9 +64,9 @@ delimiter //
 create procedure build_recipe_json(in recipe_id int, in recipe_revision_id int) begin
   declare ingredients_blob varchar(1024);
   declare json_blob varchar(8192);
-  select JSON_ARRAYAGG(JSON_UNQUOTE(JSON_OBJECT('name', IngredientName,
-                                    'count', IngredientCount,
-                                    'unit', IngredientUnit)))
+  select JSON_ARRAYAGG(JSON_OBJECT('name', IngredientName,
+                                   'count', IngredientCount,
+                                   'unit', IngredientUnit))
     into ingredients_blob
     from RecipeIngredients natural join Ingredients
     where RecipeId = recipe_id and RecipeRevisionId = recipe_revision_id;
