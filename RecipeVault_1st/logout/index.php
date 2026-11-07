@@ -11,6 +11,10 @@ session_destroy();
   <title>Logout</title>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <!-- Resets local storage, since user is logging out. -->
+  <script>
+      localStorage.clear();
+  </script>
 </head>
 <body>
   <p>You are now logged out.</p>
