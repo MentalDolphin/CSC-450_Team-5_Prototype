@@ -199,7 +199,7 @@ if (isset($_SESSION['email_address'])) {
 
                 <label for="recipeIngredients">Ingredients</label>
                 <div id="recipeIngredients">
-                    <div class= "ingredient-row">
+                    <div class="ingredient-row">
                         <input
                             class="ingredientAmount"
                             type="number"
@@ -211,11 +211,11 @@ if (isset($_SESSION['email_address'])) {
                             required
                         >
                         <select class="ingredientUnit">
+                                <option value=""></option>
                                 <option value="cups">cups</option>
                                 <option value="tablespoons">tablespoons</option>
                                 <option value="teaspoons">teaspoons</option>
                                 <option value="grams">grams</option>
-                                <option value=""></option>
                             </select>
                         <input
                             class="ingredientName"

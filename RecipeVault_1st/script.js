@@ -19,7 +19,7 @@ const sampleRecipes = [
         ingredients: [
             { name: "chicken breasts", amount: "2", unit: "" },
             { name: "lemon", amount: "1", unit: "" },
-            { name: "olive oil", amount: "1", unit: "tablespoon" }
+            { name: "olive oil", amount: "1", unit: "tablespoons" }
         ],
         instructions:
             "Heat the olive oil in a pan.\n" +
@@ -164,6 +164,7 @@ let showingMyRecipes = false;
 
 let recipes = loadRecipes();
 
+let ingredientCounter = 1;
 
 /* ==================================================
    STORAGE FUNCTIONS
@@ -603,8 +604,10 @@ function populateIngredientRows(ingredients) {
     // Remove existing ingredient rows.
     ingredientsInput.replaceChildren();
 
+    ingredientCounter = 0;
     ingredients.forEach(function (ingredient) {
-        const row = addIngredientRow();
+        // Pass ingredient counter, then increment it.
+        const row = addIngredientRow(ingredientCounter++);
 
         row.querySelector(".ingredientAmount").value =
             ingredient.amount;
@@ -781,10 +784,12 @@ function submitRecipeForm(event) {
 /**
  * Adds a new ingredient row
  */
-function addIngredientRow() {
+function addIngredientRow(ingredientId) {
     // Create ingredient row
     const div = document.createElement("div");
     div.className = "ingredient-row";
+    // Autocast to string, input is integer
+    div.id = "igr" + ingredientId;
 
     // Amount input
     const amount = document.createElement("input");
@@ -800,7 +805,7 @@ function addIngredientRow() {
     // Unit select
     const select = document.createElement("select");
     select.className = "ingredientUnit";
-    const units = ["cups", "tablespoons", "teaspoons", "grams", ""];
+    const units = ["", "cups", "tablespoons", "teaspoons", "grams"];
     units.forEach(unit => {
         const option = document.createElement("option");
         option.value = unit;
@@ -821,15 +826,34 @@ function addIngredientRow() {
     div.appendChild(select);
     div.appendChild(name);
 
+    // To remove the item
+    if (ingredientId > 0) {
+        const removalButton = document.createElement("button");
+        removalButton.className = "secondary-button";
+        removalButton.type = "button";
+        removalButton.innerHTML = "\u00D7";
+        removalButton.setAttribute("onclick", `removeIngredient(${ingredientId})`);
+        div.appendChild(removalButton);
+    }
+
     // Append div to recipeIngredients
     return div;
+}
+
+/**
+ * Removes a specific ingredient row (the top one can't be removed).
+ */
+function removeIngredient(ingredientId) {
+    document.getElementById("igr" + ingredientId).remove();
 }
 
 /**
  * Adds a new ingredient row to the form (for the button)
  */
 function addIngredient() {
-    document.getElementById("recipeIngredients").appendChild(addIngredientRow())
+    document.getElementById("recipeIngredients").appendChild(
+        addIngredientRow(ingredientCounter++)
+    );
 }
 
 function cancelRecipeForm() {
