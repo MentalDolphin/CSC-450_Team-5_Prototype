@@ -164,6 +164,7 @@ let showingMyRecipes = false;
 
 let recipes = loadRecipes();
 
+// This is the ID of the next recipe to be added.
 let ingredientCounter = 1;
 
 /* ==================================================
