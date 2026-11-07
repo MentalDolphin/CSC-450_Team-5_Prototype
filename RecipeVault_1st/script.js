@@ -16,10 +16,11 @@ const sampleRecipes = [
         title: "Lemon Chicken",
         servings: 4,
         visibility: "public",
-        ingredients:
-            "2 chicken breasts\n" +
-            "1 lemon\n" +
-            "1 tablespoon olive oil",
+        ingredients: [
+            { name: "chicken breasts", amount: "2", unit: "" },
+            { name: "lemon", amount: "1", unit: "" },
+            { name: "olive oil", amount: "1", unit: "tablespoon" }
+        ],
         instructions:
             "Heat the olive oil in a pan.\n" +
             "Cook the chicken thoroughly.\n" +
@@ -34,10 +35,11 @@ const sampleRecipes = [
         title: "Tomato Basil Pasta",
         servings: 2,
         visibility: "public",
-        ingredients:
-            "200 grams pasta\n" +
-            "2 tomatoes\n" +
-            "6 basil leaves",
+        ingredients: [
+            { name: "pasta", amount: "200", unit: "grams" },
+            { name: "tomatoes", amount: "1", unit: "" },
+            { name: "basil leaves", amount: "6", unit: "" }
+        ],
         instructions:
             "Boil the pasta.\n" +
             "Cook the tomatoes in a separate pan.\n" +
@@ -52,14 +54,34 @@ const sampleRecipes = [
         title: "Weekend Pancakes",
         servings: 4,
         visibility: "private",
-        ingredients:
-            "1 cup flour\n" +
-            "1 cup milk\n" +
-            "1 egg",
+        ingredients: [
+            { name: "flour", amount: "1", unit: "cups" },
+            { name: "milk", amount: "1", unit: "cups" },
+            { name: "egg", amount: "1", unit: "" }
+        ],
         instructions:
             "Mix the ingredients.\n" +
             "Pour small portions onto a warm skillet.\n" +
             "Cook both sides until done.",
+        revision: 1,
+        history: []
+    },
+
+    {
+        id: "recipe-4",
+        author: CURRENT_AUTHOR,
+        title: "Lentil Stew",
+        servings: 4,
+        visibility: "private",
+        ingredients: [
+            { name: "lentils", amount: "2", unit: "cups" },
+            { name: "vegetable stock", amount: "2", unit: "cups" },
+            { name: "tomato paste", amount: "1", unit: "tablespoon" }
+        ],
+        instructions:
+            "Brown tomato paste in a pot.\n" +
+            "Add remaining ingredients.\n" +
+            "Let simmer for 30 minutes.",
         revision: 1,
         history: []
     }
@@ -161,7 +183,6 @@ function isValidStoredRecipe(recipe) {
         typeof recipe.id === "string" &&
         typeof recipe.author === "string" &&
         typeof recipe.title === "string" &&
-        typeof recipe.ingredients === "string" &&
         typeof recipe.instructions === "string" &&
         Number.isInteger(recipe.servings) &&
         recipe.servings >= 1 &&
@@ -308,12 +329,18 @@ function displayRecipes(searchTerm = "", ingredientTerms = []) {
 
         // Search the ingredient list as well as the recipe name.
         const matchesIngredient =
-            recipe.ingredients.toLowerCase().includes(normalizedSearch);
+            recipe.ingredients.some(function (ingredient) {
+                return ingredient.name.toLowerCase().includes(normalizedSearch);
+            });
 
         // Literal string comparison only: no HTML, SQL, eval, or user-built regex.
         const matchesSearch = ingredientTerms.length > 0
-            ? ingredientTerms.every(function (ingredient) {
-                return recipe.ingredients.toLowerCase().includes(ingredient);
+            ? ingredientTerms.every(function (term) {
+                return recipe.ingredients.some(function (ingredient) {
+                    return ingredient.name.toLowerCase().includes(
+                        term.toLowerCase()
+                    );
+                });
             })
             : matchesName || matchesIngredient;
 
@@ -535,6 +562,13 @@ function openRecipeForm(recipeId = null) {
     showStatus("");
 
     if (recipeToEdit === null) {
+        populateIngredientRows([
+            {
+                amount: "1",
+                unit: "cups",
+                name: ""
+            }
+        ]);
         saveRecipeButton.textContent = "Save Recipe";
 
         revisionMessage.textContent =
@@ -545,7 +579,7 @@ function openRecipeForm(recipeId = null) {
         titleInput.value = recipeToEdit.title;
         servingsInput.value = recipeToEdit.servings;
         visibilityInput.value = recipeToEdit.visibility;
-        ingredientsInput.value = recipeToEdit.ingredients;
+        populateIngredientRows(recipeToEdit.ingredients);
         instructionsInput.value = recipeToEdit.instructions;
 
         saveRecipeButton.textContent = "Save Changes";
@@ -565,17 +599,46 @@ function openRecipeForm(recipeId = null) {
     titleInput.focus();
 }
 
+function populateIngredientRows(ingredients) {
+    // Remove existing ingredient rows.
+    ingredientsInput.replaceChildren();
+
+    ingredients.forEach(function (ingredient) {
+        const row = addIngredientRow();
+
+        row.querySelector(".ingredientAmount").value =
+            ingredient.amount;
+
+        row.querySelector(".ingredientUnit").value =
+            ingredient.unit;
+
+        row.querySelector(".ingredientName").value =
+            ingredient.name;
+
+        ingredientsInput.appendChild(row);
+    });
+}
+
 
 /* ==================================================
    READ AND VALIDATE FORM INPUT
 ================================================== */
 
 function getRecipeFormData() {
+    const ingredientRows = document.querySelectorAll(".ingredient-row");
+    const ingredientsArray = Array.from(ingredientRows).map(function (row) {
+        return {
+            amount: row.querySelector(".ingredientAmount").value.trim(),
+            unit: row.querySelector(".ingredientUnit").value.trim(),
+            name: row.querySelector(".ingredientName").value.trim()
+        }
+    })
+
     return {
         title: titleInput.value.trim(),
         servings: Number(servingsInput.value),
         visibility: visibilityInput.value,
-        ingredients: ingredientsInput.value.trim(),
+        ingredients: ingredientsArray,
         instructions: instructionsInput.value.trim()
     };
 }
@@ -698,7 +761,6 @@ function submitRecipeForm(event) {
             revision: 1,
             history: []
         };
-
         updatedRecipes.push(newRecipe);
     }
 
@@ -716,6 +778,59 @@ function submitRecipeForm(event) {
     }
 }
 
+/**
+ * Adds a new ingredient row
+ */
+function addIngredientRow() {
+    // Create ingredient row
+    const div = document.createElement("div");
+    div.className = "ingredient-row";
+
+    // Amount input
+    const amount = document.createElement("input");
+    amount.className = "ingredientAmount";
+    amount.type = "number";
+    amount.min = "1";
+    amount.max = "1000";
+    amount.step = "1";
+    amount.value = "1";
+    amount.setAttribute("aria-describedby", "formError");
+    amount.required = true;
+
+    // Unit select
+    const select = document.createElement("select");
+    select.className = "ingredientUnit";
+    const units = ["cups", "tablespoons", "teaspoons", "grams", ""];
+    units.forEach(unit => {
+        const option = document.createElement("option");
+        option.value = unit;
+        option.textContent = unit;
+        select.appendChild(option);
+    });
+
+    // Ingredient name input
+    const name = document.createElement("input");
+    name.className = "ingredientName";
+    name.type = "text";
+    name.maxLength = 60;
+    name.setAttribute("aria-describedby", "formError");
+    name.required = true;
+
+    // Append elements to div
+    div.appendChild(amount);
+    div.appendChild(select);
+    div.appendChild(name);
+
+    // Append div to recipeIngredients
+    return div;
+}
+
+/**
+ * Adds a new ingredient row to the form (for the button)
+ */
+function addIngredient() {
+    document.getElementById("recipeIngredients").appendChild(addIngredientRow())
+}
 
 function cancelRecipeForm() {
     editingRecipeId = null;
@@ -749,7 +864,7 @@ function openRecipeDetails(recipeId) {
         selectedRecipe.visibility + " | Revision " +
         selectedRecipe.revision;
 
-    detailsIngredients.textContent = selectedRecipe.ingredients;
+    detailsIngredients.textContent = getIngredientString(selectedRecipe.ingredients);
     detailsInstructions.textContent = selectedRecipe.instructions;
 
     editRecipeButton.hidden =
@@ -758,6 +873,14 @@ function openRecipeDetails(recipeId) {
     displayRevisionHistory(selectedRecipe);
 }
 
+function getIngredientString(ingredients) {
+    const ingredientsString = ingredients.map(function (ingredient) {
+        return ingredient.amount + " " +
+            ingredient.unit + " " +
+            ingredient.name;
+    }).join("\n");
+    return ingredientsString;
+} 
 
 /* ==================================================
    DISPLAY PREVIOUS PUBLISHED REVISIONS

@@ -184,6 +184,19 @@ textarea {
     border: 2px solid #a52929;
 }
 
+#recipeIngredients {
+    max-height: 20rem;
+    overflow: scroll;
+}
+
+.ingredient-row {
+    display: grid;
+    grid-template-columns: 0.5fr 1fr 5fr;
+    gap: 20px;
+    padding: 5px 0;
+}
+
+
 
 /* ==================================================
    MESSAGES

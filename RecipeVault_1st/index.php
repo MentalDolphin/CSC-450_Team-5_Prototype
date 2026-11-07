@@ -198,14 +198,43 @@ if (isset($_SESSION['email_address'])) {
                 </div>
 
                 <label for="recipeIngredients">Ingredients</label>
+                <div id="recipeIngredients">
+                    <div class= "ingredient-row">
+                        <input
+                            class="ingredientAmount"
+                            type="number"
+                            min="1"
+                            max="1000"
+                            step="1"
+                            value="1"
+                            aria-describedby="formError"
+                            required
+                        >
+                        <select class="ingredientUnit">
+                                <option value="cups">cups</option>
+                                <option value="tablespoons">tablespoons</option>
+                                <option value="teaspoons">teaspoons</option>
+                                <option value="grams">grams</option>
+                                <option value=""></option>
+                            </select>
+                        <input
+                            class="ingredientName"
+                            type="text"
+                            maxlength="60"
+                            placeholder="olive oil"
+                            aria-describedby="formError"
+                            required
+                        >
+                    </div>
+                </div>
 
-                <textarea
-                    id="recipeIngredients"
-                    rows="5"
-                    placeholder="2 cups rice&#10;1 tablespoon olive oil"
-                    aria-describedby="formError"
-                    required
-                ></textarea>
+                <button
+                    class="addIngredient"
+                    type="button"
+                    onclick="addIngredient()"
+                >
+                Add ingredient
+                </button>
 
                 <label for="recipeInstructions">Instructions</label>
 
