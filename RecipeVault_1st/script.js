@@ -8,6 +8,7 @@
 const CURRENT_AUTHOR = "demo-author";
 
 const STORAGE_KEY = "recipevault-readable-v1";
+const STORAGE_META_KEY = "recipevault-readable-meta-v1";
 
 const sampleRecipes = [
     {
@@ -246,6 +247,35 @@ function saveRecipes(updatedRecipes) {
     }
 }
 
+/**
+ * Fetches and checks authentication data. This makes sure we don't clobber another user's data.
+ */
+async function checkAuthData() {
+    try {
+        const response = await fetch("api/get-authdata");
+        if (!response.ok) {
+            throw new Error(`API get-authdata returned error ${response.status}`);
+        }
+        // Will resolve to a JavaScript Object
+        const result = await response.json();
+        const savedMetadataStr = localStorage.getItem(STORAGE_META_KEY);
+        const savedMetadata = JSON.parse(savedMetadataStr);
+        if (savedMetadataStr === null) {
+            localStorage.setItem(STORAGE_META_KEY, JSON.stringify(result));
+        } else if (result.sessionIsValid === false) {
+            // Refresh to pull up login page
+            console.log("Credentials expired");
+            location.replace("login");
+        } else if (result.email !== savedMetadata.email) {
+            console.log(`Saved email ${savedMetadata.email} is not the same as current user email ${result.email}, clearing storage.`);
+            localStorage.clear();
+        }
+    } catch (error) {
+        console.log(error.message);
+    }
+}
+
+checkAuthData();
 
 /* ==================================================
    SHARED PAGE FUNCTIONS
