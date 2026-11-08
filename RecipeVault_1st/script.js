@@ -5,22 +5,22 @@
 ================================================== */
 
 // This is a demo identity, not a real login system.
-const CURRENT_AUTHOR = "demo-author";
+const CURRENT_AUTHOR = 1;
 
 const STORAGE_KEY = "recipevault-readable-v1";
 const STORAGE_META_KEY = "recipevault-readable-meta-v1";
 
 const sampleRecipes = [
     {
-        id: "recipe-1",
-        author: CURRENT_AUTHOR,
+        id: 1,
+        authorId: CURRENT_AUTHOR,
         title: "Lemon Chicken",
         servings: 4,
         visibility: "public",
         ingredients: [
-            { name: "chicken breasts", amount: "2", unit: "" },
-            { name: "lemon", amount: "1", unit: "" },
-            { name: "olive oil", amount: "1", unit: "tablespoons" }
+            { name: "chicken breasts", count: 2, unit: null },
+            { name: "lemon", count: 1, unit: null },
+            { name: "olive oil", count: 1, unit: "tbsp" }
         ],
         instructions:
             "Heat the olive oil in a pan.\n" +
@@ -31,15 +31,15 @@ const sampleRecipes = [
     },
 
     {
-        id: "recipe-2",
-        author: "another-author",
+        id: 2,
+        authorId: 2,
         title: "Tomato Basil Pasta",
         servings: 2,
         visibility: "public",
         ingredients: [
-            { name: "pasta", amount: "200", unit: "grams" },
-            { name: "tomatoes", amount: "1", unit: "" },
-            { name: "basil leaves", amount: "6", unit: "" }
+            { name: "pasta", count: "200", unit: "g" },
+            { name: "tomatoes", count: "1", unit: null },
+            { name: "basil leaves", count: "6", unit: null }
         ],
         instructions:
             "Boil the pasta.\n" +
@@ -50,15 +50,15 @@ const sampleRecipes = [
     },
 
     {
-        id: "recipe-3",
-        author: CURRENT_AUTHOR,
+        id: 3,
+        authorId: CURRENT_AUTHOR,
         title: "Weekend Pancakes",
         servings: 4,
         visibility: "private",
         ingredients: [
-            { name: "flour", amount: "1", unit: "cups" },
-            { name: "milk", amount: "1", unit: "cups" },
-            { name: "egg", amount: "1", unit: "" }
+            { name: "flour", count: "1", unit: "cup" },
+            { name: "milk", count: "1", unit: "cup" },
+            { name: "egg", count: "1", unit: null }
         ],
         instructions:
             "Mix the ingredients.\n" +
@@ -69,15 +69,15 @@ const sampleRecipes = [
     },
 
     {
-        id: "recipe-4",
-        author: CURRENT_AUTHOR,
+        id: 4,
+        authorId: CURRENT_AUTHOR,
         title: "Lentil Stew",
         servings: 4,
         visibility: "private",
         ingredients: [
-            { name: "lentils", amount: "2", unit: "cups" },
-            { name: "vegetable stock", amount: "2", unit: "cups" },
-            { name: "tomato paste", amount: "1", unit: "tablespoon" }
+            { name: "lentils", count: "2", unit: "cup" },
+            { name: "vegetable stock", count: "2", unit: "cup" },
+            { name: "tomato paste", count: "1", unit: "tbsp" }
         ],
         instructions:
             "Brown tomato paste in a pot.\n" +
@@ -88,6 +88,28 @@ const sampleRecipes = [
     }
 ];
 
+/* ==================================================
+   MAPPINGS
+================================================== */
+// This allows accounting for different variations within the JSON unit field
+// Here, we can map them to what is displayed.
+const unitMapToDisplay = new Map([
+  [null, ""],
+  ["", ""],
+  ["cup", "cups"],
+  ["cups", "cups"],
+  ["tsp", "teaspoons"],
+  ["teaspoon", "teaspoons"],
+  ["teaspoons", "teaspoons"],
+  ["tbsp", "tablespoons"],
+  ["tablespoon", "tablespoons"],
+  ["tablespoons", "tablespoons"],
+  ["g", "grams"],
+  ["gram", "grams"],
+  ["grams", "grams"],
+]);
+
+const unitDisplayList = new Set(unitMapToDisplay.values());
 
 /* ==================================================
    PAGE ELEMENTS
@@ -183,8 +205,8 @@ function isValidStoredRecipe(recipe) {
     }
 
     return (
-        typeof recipe.id === "string" &&
-        typeof recipe.author === "string" &&
+        typeof recipe.id === "number" &&
+        typeof recipe.authorId === "number" &&
         typeof recipe.title === "string" &&
         typeof recipe.instructions === "string" &&
         Number.isInteger(recipe.servings) &&
@@ -315,7 +337,7 @@ function createTextElement(tagName, text, className = "") {
 function canViewRecipe(recipe) {
     return (
         recipe.visibility === "public" ||
-        recipe.author === CURRENT_AUTHOR
+        recipe.authorId === CURRENT_AUTHOR
     );
 }
 
@@ -354,7 +376,7 @@ function displayRecipes(searchTerm = "", ingredientTerms = []) {
 
         const belongsInCollection =
             !showingMyRecipes ||
-            recipe.author === CURRENT_AUTHOR;
+            recipe.authorId === CURRENT_AUTHOR;
 
         const matchesName =
             recipe.title.toLowerCase().includes(normalizedSearch);
@@ -441,7 +463,7 @@ function createRecipeCard(recipe) {
     card.append(title, visibility, information, viewButton);
 
     // Only show Edit for recipes owned by the demo author.
-    if (recipe.author === CURRENT_AUTHOR) {
+    if (recipe.authorId === CURRENT_AUTHOR) {
         const editButton = createTextElement(
             "button",
             "Edit " + recipe.title,
@@ -580,7 +602,7 @@ function openRecipeForm(recipeId = null) {
 
         if (
             !recipeToEdit ||
-            recipeToEdit.author !== CURRENT_AUTHOR
+            recipeToEdit.authorId !== CURRENT_AUTHOR
         ) {
             showStatus("You can only edit your own recipes.");
             return;
@@ -596,7 +618,7 @@ function openRecipeForm(recipeId = null) {
     if (recipeToEdit === null) {
         populateIngredientRows([
             {
-                amount: "1",
+                count: "1",
                 unit: "cups",
                 name: ""
             }
@@ -641,10 +663,10 @@ function populateIngredientRows(ingredients) {
         const row = addIngredientRow(ingredientCounter++);
 
         row.querySelector(".ingredientAmount").value =
-            ingredient.amount;
+            ingredient.count;
 
         row.querySelector(".ingredientUnit").value =
-            ingredient.unit;
+            unitMapToDisplay.get(ingredient.unit);
 
         row.querySelector(".ingredientName").value =
             ingredient.name;
@@ -662,7 +684,7 @@ function getRecipeFormData() {
     const ingredientRows = document.querySelectorAll(".ingredient-row");
     const ingredientsArray = Array.from(ingredientRows).map(function (row) {
         return {
-            amount: row.querySelector(".ingredientAmount").value.trim(),
+            count: row.querySelector(".ingredientAmount").value.trim(),
             unit: row.querySelector(".ingredientUnit").value.trim(),
             name: row.querySelector(".ingredientName").value.trim()
         }
@@ -754,7 +776,7 @@ function submitRecipeForm(event) {
 
         if (
             !recipeToUpdate ||
-            recipeToUpdate.author !== CURRENT_AUTHOR
+            recipeToUpdate.authorId !== CURRENT_AUTHOR
         ) {
             formError.textContent =
                 "You can only edit your own recipes.";
@@ -786,7 +808,7 @@ function submitRecipeForm(event) {
     } else {
         const newRecipe = {
             id: "recipe-" + Date.now(),
-            author: CURRENT_AUTHOR,
+            authorId: CURRENT_AUTHOR,
             title: formData.title,
             servings: formData.servings,
             visibility: formData.visibility,
@@ -836,8 +858,7 @@ function addIngredientRow(ingredientId) {
     // Unit select
     const select = document.createElement("select");
     select.className = "ingredientUnit";
-    const units = ["", "cups", "tablespoons", "teaspoons", "grams"];
-    units.forEach(unit => {
+    unitDisplayList.forEach(unit => {
         const option = document.createElement("option");
         option.value = unit;
         option.textContent = unit;
@@ -923,15 +944,16 @@ function openRecipeDetails(recipeId) {
     detailsInstructions.textContent = selectedRecipe.instructions;
 
     editRecipeButton.hidden =
-        selectedRecipe.author !== CURRENT_AUTHOR;
+        selectedRecipe.authorId !== CURRENT_AUTHOR;
 
     displayRevisionHistory(selectedRecipe);
 }
 
 function getIngredientString(ingredients) {
     const ingredientsString = ingredients.map(function (ingredient) {
-        return ingredient.amount + " " +
-            ingredient.unit + " " +
+        return ingredient.count + " " +
+            // True if non-null
+            ((!!ingredient.unit)? (unitMapToDisplay.get(ingredient.unit) + " ") : "") +
             ingredient.name;
     }).join("\n");
     return ingredientsString;
@@ -964,7 +986,7 @@ function displayRevisionHistory(recipe) {
 
         const ingredients = createTextElement(
             "p",
-            revision.ingredients,
+            getIngredientString(revision.ingredients),
             "multiline-text"
         );
 
