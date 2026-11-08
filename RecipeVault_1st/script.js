@@ -27,7 +27,11 @@ const sampleRecipes = [
             "Cook the chicken thoroughly.\n" +
             "Add lemon juice before serving.",
         revision: 1,
-        history: []
+        availRevisions: {
+            pub: [1],
+            priv: null
+        },
+        history: new Map()
     },
 
     {
@@ -46,7 +50,11 @@ const sampleRecipes = [
             "Cook the tomatoes in a separate pan.\n" +
             "Combine the pasta, tomatoes, and basil.",
         revision: 1,
-        history: []
+        availRevisions: {
+            pub: [1],
+            priv: null
+        },
+        history: new Map()
     },
 
     {
@@ -65,7 +73,11 @@ const sampleRecipes = [
             "Pour small portions onto a warm skillet.\n" +
             "Cook both sides until done.",
         revision: 1,
-        history: []
+        availRevisions: {
+            pub: null,
+            priv: [1]
+        },
+        history: new Map()
     },
 
     {
@@ -84,7 +96,11 @@ const sampleRecipes = [
             "Add remaining ingredients.\n" +
             "Let simmer for 30 minutes.",
         revision: 1,
-        history: []
+        availRevisions: {
+            pub: null,
+            priv: [1]
+        },
+        history: new Map()
     }
 ];
 
@@ -194,8 +210,34 @@ let ingredientCounter = 1;
    STORAGE FUNCTIONS
 ================================================== */
 
+/**
+ * Needed to convert a Map to an Object
+ * This runs when using JSON.stringify(obj, replacer)
+ */
+function jsonRecipeReplacer(k, v) {
+    if (v instanceof Map) {
+        // Convert Map to Object
+        return Object.fromEntries(v);
+    } else {
+        return v;
+    }
+}
+
+/**
+ * Converts history property back to a Map.
+ * This runs when using JSON.parse(obj, reviver)
+ */
+function jsonRecipeReviver(k, v, context) {
+    if (k === "history" && typeof(v) === "object") {
+        // We need to convert it to a Map.
+        return new Map(Object.entries(v));
+    } else {
+        return v;
+    }
+}
+
 function copyData(data) {
-    return JSON.parse(JSON.stringify(data));
+    return JSON.parse(JSON.stringify(data, jsonRecipeReplacer), jsonRecipeReviver);
 }
 
 
@@ -215,10 +257,13 @@ function isValidStoredRecipe(recipe) {
         Number.isInteger(recipe.revision) &&
         recipe.revision >= 1 &&
         ["public", "private"].includes(recipe.visibility) &&
-        Array.isArray(recipe.history)
+        (Array.isArray(recipe.availRevisions.pub) ||
+         (recipe.availRevisions.pub === null)) &&
+        (Array.isArray(recipe.availRevisions.priv) ||
+         (recipe.availRevisions.priv === null)) &&
+        recipe.history instanceof Map
     );
 }
-
 
 function loadRecipes() {
     try {
@@ -228,7 +273,7 @@ function loadRecipes() {
             return copyData(sampleRecipes);
         }
 
-        const savedRecipes = JSON.parse(savedData);
+        const savedRecipes = JSON.parse(savedData, jsonRecipeReviver);
 
         if (
             !Array.isArray(savedRecipes) ||
@@ -250,7 +295,7 @@ function loadRecipes() {
 
 function saveRecipes(updatedRecipes) {
     try {
-        const recipeData = JSON.stringify(updatedRecipes);
+        const recipeData = JSON.stringify(updatedRecipes, jsonRecipeReplacer);
 
         // Update application data only after storage succeeds.
         localStorage.setItem(STORAGE_KEY, recipeData);
@@ -786,17 +831,16 @@ function submitRecipeForm(event) {
         }
 
         // Preserve the recipe as it existed before this edit.
-        if (recipeToUpdate.visibility === "public") {
-            const previousRevision = {
-                title: recipeToUpdate.title,
-                servings: recipeToUpdate.servings,
-                ingredients: recipeToUpdate.ingredients,
-                instructions: recipeToUpdate.instructions,
-                revision: recipeToUpdate.revision
-            };
+        const previousRevision = {
+            title: recipeToUpdate.title,
+            servings: recipeToUpdate.servings,
+            ingredients: recipeToUpdate.ingredients,
+            instructions: recipeToUpdate.instructions,
+            visibility: recipeToUpdate.visibility,
+            revision: recipeToUpdate.revision
+        };
 
-            recipeToUpdate.history.push(previousRevision);
-        }
+        recipeToUpdate.history.set(recipeToUpdate.revision, previousRevision);
 
         recipeToUpdate.title = formData.title;
         recipeToUpdate.servings = formData.servings;
@@ -805,9 +849,15 @@ function submitRecipeForm(event) {
         recipeToUpdate.instructions = formData.instructions;
 
         recipeToUpdate.revision += 1;
+        if (recipeToUpdate.visibility === 'public') {
+            recipeToUpdate.availRevisions.pub.push(recipeToUpdate.revision);
+        } else {
+            recipeToUpdate.availRevisions.priv.push(recipeToUpdate.revision);
+        }
     } else {
         const newRecipe = {
-            id: "recipe-" + Date.now(),
+            // We need an integer ID here.
+            id: Math.floor(Math.random() * 65535),
             authorId: CURRENT_AUTHOR,
             title: formData.title,
             servings: formData.servings,
@@ -815,7 +865,11 @@ function submitRecipeForm(event) {
             ingredients: formData.ingredients,
             instructions: formData.instructions,
             revision: 1,
-            history: []
+            availRevisions: {
+                pub: (formData.visibility === "public")? [1] : null,
+                priv: (formData.visibility === "private")? [1] : null
+            },
+            history: new Map()
         };
         updatedRecipes.push(newRecipe);
     }
@@ -968,7 +1022,13 @@ function displayRevisionHistory(recipe) {
 
     revisionHistorySection.hidden = recipe.history.length === 0;
 
-    recipe.history.forEach(function (revision) {
+    // FIXME: Change this to ensure all revisions are present.
+    // Do we need async here?
+    recipe.history.forEach(function (revision, revId, revMap) {
+        if (revision.visibility === "private") {
+            // This only displays public revisions.
+            return;
+        }
         const revisionDetails = document.createElement("details");
 
         const summary = createTextElement(
