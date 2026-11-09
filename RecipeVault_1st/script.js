@@ -219,6 +219,10 @@ let recipes = null;
 // This is the ID of the next recipe to be added.
 let ingredientCounter = 1;
 
+// This is used to mark when we need to check for authentication.
+let needsCheckAuth = false;
+let checkAuthTimer = null;
+
 /* ==================================================
    STORAGE FUNCTIONS
 ================================================== */
@@ -340,6 +344,21 @@ function saveRecipes(updatedRecipes) {
 /* ==================================================
    SERVER SYNC FUNCTIONS
 ================================================== */
+
+function setTimer(tFunc, tTimeout) {
+    return {func: tFunc,
+            timeout: tTimeout,
+            timer: setTimeout(tFunc, tTimeout)};
+}
+
+function resetTimer(timerObj) {
+    let tFunc = timerObj.func;
+    let tTimeout = timerObj.timeout;
+    clearTimeout(timerObj.timer);
+    return {func: tFunc,
+            timeout: tTimeout,
+            timer: setTimeout(tFunc, tTimeout)};
+}
 
 /**
  * Fetches and checks authentication data. This makes sure we don't clobber another user's data.
@@ -511,55 +530,49 @@ function fillRecipeRevisionsFromSrv(recipe) {
  * saved and available revisions.
  */
 async function getSrvRecipeStore() {
-    if (!await userIsAuthenticated()) {
-        console.log("getSrvRecipeStore: Session expired");
-        return;
+    if (needsCheckAuth) {
+        if (!await userIsAuthenticated()) {
+            console.log("getSrvRecipeStore: Session expired");
+            return;
+        }
+        resetTimer(checkAuthTimer);
     }
     serverAvailRecipes = await getSrvAvailRecipes();
+//    console.log("getSrvAvailRecipes");
     CURRENT_AUTHOR = serverAvailRecipes.myRecipes.at(0).authorId;
-    let syncManager = new Int32Array(new SharedArrayBuffer(8));
+//    let syncManager = new Int32Array(new SharedArrayBuffer(8));
     let serverRecipes = [];
-    // I am using this
-    console.log("getSrvRecipeStore");
-    console.log(`Avail Recipes: ${JSON.stringify(serverAvailRecipes)}`);
-    console.log(`CURRENT_AUTHOR = ${CURRENT_AUTHOR}`);
-    numRecipes = serverAvailRecipes.myRecipes.length + serverAvailRecipes.otherPublicRecipes.length;
-    serverAvailRecipes.myRecipes.forEach(async function (recDescObj, i, a) {
-        if (recDescObj.authorId !== CURRENT_AUTHOR) {
-            console.log(`getSrvRecipeStore: cur. author ID ${CURRENT_AUTHOR} does not match recipe ${recDescObj.id} (where it is ${recDescObj.authorId})`);
-        }
-        // We now work to load the recipes.
+
+    // Used for filling in the recipe data.
+    let fillRecipe = async function (recDescObj, index, arr) {
         let latestRecipeData = await getSrvRecipe(recDescObj.id);
         let recipeRevisionData = await getSrvRecipeRevisions(recDescObj.id);
         // Fill in the availRevisions and history fields
         latestRecipeData.availRevisions = recipeRevisionData;
         // We fill in the "history" field as-needed
         latestRecipeData.history = new Map();
-        serverRecipes.push(latestRecipeData);
-        // This is the count of done jobs (like releasing a semaphore).
-        Atomics.add(syncManager, 1, 1);
-        // Make the outer function check the semaphore.
-        Atomics.notify(syncManager, 0);
+        return latestRecipeData;
+    };
+
+
+    // I am using this
+//    console.log("getSrvRecipeStore");
+//    console.log(`Avail Recipes: ${JSON.stringify(serverAvailRecipes)}`);
+//    console.log(`CURRENT_AUTHOR = ${CURRENT_AUTHOR}`);
+    let numRecipes = serverAvailRecipes.myRecipes.length + serverAvailRecipes.otherPublicRecipes.length;
+    serverAvailRecipes.myRecipes.forEach(function (recDescObj, i, a) {
+        if (recDescObj.authorId !== CURRENT_AUTHOR) {
+            console.log(`getSrvRecipeStore: cur. author ID ${CURRENT_AUTHOR} does not match recipe ${recDescObj.id} (where it is ${recDescObj.authorId})`);
+        }
+        // This resolves to the filled-out recipe.
+        serverRecipes.push(fillRecipe(recDescObj, i, a));
     });
     // Now do this for private recipes
-    serverAvailRecipes.otherPublicRecipes.forEach(async function (recDescObj) {
-        let latestRecipeData = await getSrvRecipe(recDescObj.id);
-        let recipeRevisionData = await getSrvRecipeRevisions(recDescObj.id);
-        latestRecipeData.availRevisions = recipeRevisionData;
-        latestRecipeData.history = new Map();
-        serverRecipes.push(latestRecipeData);
-        // This is the count of done jobs (like releasing a semaphore).
-        Atomics.add(syncManager, 1, 1);
-        // Make the outer function check the semaphore.
-        Atomics.notify(syncManager, 0);
+    serverAvailRecipes.otherPublicRecipes.forEach(function (recDescObj, i, a) {
+        // This resolves to the filled-out recipe.
+        serverRecipes.push(fillRecipe(recDescObj, i, a));
     });
-    // I need to synchronize all of these threads.
-    // Basically, make a DIY semaphore and wait on it.
-    while (Atomics.load(syncManager, 1) !== numRecipes) {
-        // This will wait as long as index 0 is 0. Use it to hand over to other threads.
-        await Atomics.waitAsync(syncManager, 0, 0, 64).value;
-    }
-    return serverRecipes;
+    return await Promise.all(serverRecipes);
 }
 
 /* ==================================================
@@ -1371,6 +1384,7 @@ async function initializeProgram() {
     // Risk of causing a hang here, so this should be capped out.
     recipes = await loadRecipes().catch(loadRecipes);
     displayRecipes();
+    checkAuthTimer = setTimer(() => {needsCheckAuth = true;}, 60000 * 30);
 }
 
 initializeProgram();
