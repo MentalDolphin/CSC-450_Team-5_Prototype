@@ -5,7 +5,15 @@
 ================================================== */
 
 // This is a demo identity, not a real login system.
-const CURRENT_AUTHOR = 1;
+let CURRENT_AUTHOR = 1;
+
+const RECIPE_API = "api/";
+const URL_PARAMS = new URLSearchParams(location.search);
+
+let IS_ONLINE_MODE = false;
+if (URL_PARAMS.get("sync") == 1) {
+    IS_ONLINE_MODE = true;
+}
 
 const STORAGE_KEY = "recipevault-readable-v1";
 const STORAGE_META_KEY = "recipevault-readable-meta-v1";
@@ -201,7 +209,12 @@ let selectedRecipeId = null;
 
 let showingMyRecipes = false;
 
-let recipes = loadRecipes();
+// Marker of what recipes to fetch
+let serverAvailRecipes = null;
+
+// Work around Promises.
+// This is set in the initialization function.
+let recipes = null;
 
 // This is the ID of the next recipe to be added.
 let ingredientCounter = 1;
@@ -265,12 +278,17 @@ function isValidStoredRecipe(recipe) {
     );
 }
 
-function loadRecipes() {
+async function loadRecipes() {
     try {
         const savedData = localStorage.getItem(STORAGE_KEY);
 
         if (savedData === null) {
-            return copyData(sampleRecipes);
+            if (IS_ONLINE_MODE) {
+                console.log("We are in server-sync mode, test by retrieving from server.");
+                return await getSrvRecipeStore();
+            } else {
+                return copyData(sampleRecipes);
+            }
         }
 
         const savedRecipes = JSON.parse(savedData, jsonRecipeReviver);
@@ -314,6 +332,10 @@ function saveRecipes(updatedRecipes) {
     }
 }
 
+/* ==================================================
+   SERVER SYNC FUNCTIONS
+================================================== */
+
 /**
  * Fetches and checks authentication data. This makes sure we don't clobber another user's data.
  */
@@ -343,6 +365,196 @@ async function checkAuthData() {
 }
 
 checkAuthData();
+
+/**
+ * Simpler version of above function: Only checks for expired credentials.
+ */
+async function userIsAuthenticated() {
+    try {
+        const response = await fetch("api/get-authdata");
+        if (!response.ok) {
+            throw new Error(`API get-authdata returned error ${response.status}`);
+        }
+        // Will resolve to a JavaScript Object
+        const result = await response.json();
+        return result.sessionIsValid;
+    } catch (error) {
+        console.log(error.message);
+    }
+}
+
+/**
+ * Gets the list of recipes, ours and not ours, from the server.
+ * Used to know which recipes to sync.
+ */
+async function getSrvAvailRecipes() {
+    try {
+        // Download new data
+        const response = await fetch("api/get-available-recipes");
+        if (response.status === 403) {
+            console.log("getSrvAvailRecipes: Session expired");
+        } else if (!response.ok) {
+            throw new Error(`API get-available-recipes returned error ${response.status}`);
+        }
+        // Resolves to JavaScript Object
+        /* The specification is:
+         * {"myRecipes":
+         *    null | [
+         *      {
+         *        "id": int,
+         *        "latestRevision": int,
+         *        "latestPublicRevision": int,
+         *        "visibility": "public" | "private",
+         *        "authorId": int,
+         *        "isMine": bool
+         *      }...
+         *    ],
+         *  "otherPublicRecipes":
+         *    null | [
+         *      {
+         *        "id": int,
+         *        "latestRevision": int,
+         *        "latestPublicRevision": int,
+         *        "visibility": "public",
+         *        "authorId": int,
+         *        "isMine": bool
+         *      }...
+         *    ]
+         * }
+         */
+        const result = await response.json();
+        return result;
+    } catch (error) {
+        console.log("getSrvAvailRecipes: " + error.message);
+    }
+}
+
+/**
+ * Retrieve a given recipe (optionally for a specified revision) from server.
+ */
+async function getSrvRecipe(recipeId, revision = null) {
+    if (!Number.isInteger(recipeId)) {
+        throw new Error(`getSrvRecipe: Parameter recipeId (value ${recipeId}) is not a number (type ${typeof recipeId})`);
+    }
+    if (revision !== null && !Number.isInteger(revision)) {
+        throw new Error(`getSrvRecipe: Parameter revision (value ${revision}) must be null or number (type ${typeof revision}`);
+    }
+    let apiCallUrl = `api/get-recipe?id=${recipeId}`;
+    if (revision !== null) {
+        apiCallUrl += `&revid=${revision}`;
+    }
+    try {
+        const response = await fetch(apiCallUrl);
+        if (response.status === 403) {
+            console.log("getSrvRecipe: Session expired");
+            return;
+        } else if (!response.ok) {
+            throw new Error(`API get-recipe returned error ${response.status}`);
+        }
+        // Resolves to JSON
+        const result = await response.json();
+        return result;
+    } catch (error) {
+        console.log(`getSrvRecipe (recipeId: ${recipeId}, rev.: ${revision}): ` + error.message);
+    }
+}
+
+/**
+ * Gets available revisions for a given recipe.
+ * This reformats the JSON to fit our object storage notation.
+ */
+async function getSrvRecipeRevisions(recipeId) {
+    if (!Number.isInteger(recipeId)) {
+        throw new Error(`getSrvRecipe: Parameter recipeId (value ${recipeId}) is not a number (type ${typeof recipeId})`);
+    }
+
+    let apiCallUrl = `api/get-recipe-revisions?id=${recipeId}`;
+    try {
+        const response = await fetch(apiCallUrl);
+        if (response.status === 403) {
+            console.log("getSrvRecipeRevisions: Session expired");
+            return;
+        } else if (!response.ok) {
+            throw new Error(`API get-recipe-revisions returned error ${response.status}`);
+        }
+        const result = await response.json();
+        return {pub: result.publicRevisions,
+                priv: result.privateRevisions};
+    } catch (error) {
+        console.log(`getSrvRecipeRevisions (recipeId: ${recipeId}): ` + error.message);
+    }
+}
+
+/**
+ * Fill in the public revisions for this recipe.
+ * TODO: Actually use this.
+ */
+function fillRecipeRevisionsFromSrv(recipe) {
+    // Note: We only do this for the older public revisions
+    recipe.availRevisions.myRecipes.forEach(async function (revId) {
+        // Check if it is on the current revision
+        if (revId !== recipe.revision) {
+            // Get the revision
+            const revData = await getSrvRecipe(recipe.id, revId);
+            recipe.history.set(revId, revData);
+        }
+    });
+}
+
+/**
+ * Loads the recipes from the server
+ */
+async function getSrvRecipeStore() {
+    if (!await userIsAuthenticated()) {
+        console.log("getSrvRecipeStore: Session expired");
+        return;
+    }
+    serverAvailRecipes = await getSrvAvailRecipes();
+    CURRENT_AUTHOR = serverAvailRecipes.myRecipes.at(0).authorId;
+    let syncManager = new Int32Array(new SharedArrayBuffer(8));
+    let serverRecipes = [];
+    // I am using this
+    console.log("getSrvRecipeStore");
+    console.log(`Avail Recipes: ${JSON.stringify(serverAvailRecipes)}`);
+    console.log(`CURRENT_AUTHOR = ${CURRENT_AUTHOR}`);
+    numRecipes = serverAvailRecipes.myRecipes.length + serverAvailRecipes.otherPublicRecipes.length;
+    serverAvailRecipes.myRecipes.forEach(async function (recDescObj, i, a) {
+        if (recDescObj.authorId !== CURRENT_AUTHOR) {
+            console.log(`getSrvRecipeStore: cur. author ID ${CURRENT_AUTHOR} does not match recipe ${recDescObj.id} (where it is ${recDescObj.authorId})`);
+        }
+        // We now work to load the recipes.
+        let latestRecipeData = await getSrvRecipe(recDescObj.id);
+        let recipeRevisionData = await getSrvRecipeRevisions(recDescObj.id);
+        // Fill in the availRevisions and history fields
+        latestRecipeData.availRevisions = recipeRevisionData;
+        // We fill in the "history" field as-needed
+        latestRecipeData.history = new Map();
+        serverRecipes.push(latestRecipeData);
+        // This is the count of done jobs (like releasing a semaphore).
+        Atomics.add(syncManager, 1, 1);
+        // Make the outer function check the semaphore.
+        Atomics.notify(syncManager, 0);
+    });
+    // Now do this for private recipes
+    serverAvailRecipes.otherPublicRecipes.forEach(async function (recDescObj) {
+        let latestRecipeData = await getSrvRecipe(recDescObj.id);
+        let recipeRevisionData = await getSrvRecipeRevisions(recDescObj.id);
+        latestRecipeData.availRevisions = recipeRevisionData;
+        latestRecipeData.history = new Map();
+        serverRecipes.push(latestRecipeData);
+        // This is the count of done jobs (like releasing a semaphore).
+        Atomics.add(syncManager, 1, 1);
+        // Make the outer function check the semaphore.
+        Atomics.notify(syncManager, 0);
+    });
+    // I need to synchronize all of these threads.
+    // Basically, make a DIY semaphore and wait on it.
+    while (Atomics.load(syncManager, 1) !== numRecipes) {
+        // This will wait as long as index 0 is 0. Use it to hand over to other threads.
+        await Atomics.waitAsync(syncManager, 0, 0, 64).value;
+    }
+    return serverRecipes;
+}
 
 /* ==================================================
    SHARED PAGE FUNCTIONS
@@ -1147,4 +1359,11 @@ recipeForm.addEventListener("submit", submitRecipeForm);
    INITIAL PAGE DISPLAY
 ================================================== */
 
-displayRecipes();
+async function initializeProgram() {
+    checkAuthData();
+    // Risk of causing a hang here, so this should be capped out.
+    recipes = await loadRecipes().catch(loadRecipes);
+    displayRecipes();
+}
+
+initializeProgram();
