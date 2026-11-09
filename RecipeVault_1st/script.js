@@ -278,6 +278,11 @@ function isValidStoredRecipe(recipe) {
     );
 }
 
+/**
+ * Loads recipes. I am forced to use async because of fetch() being async.
+ * It's either this or I have to essentially busy-wait.
+ * At least I can contain it, since it is only used in initialization.
+ */
 async function loadRecipes() {
     try {
         const savedData = localStorage.getItem(STORAGE_KEY);
@@ -363,8 +368,6 @@ async function checkAuthData() {
         console.log(error.message);
     }
 }
-
-checkAuthData();
 
 /**
  * Simpler version of above function: Only checks for expired credentials.
@@ -503,6 +506,9 @@ function fillRecipeRevisionsFromSrv(recipe) {
 
 /**
  * Loads the recipes from the server
+ * Currently, this will load in **all** revisions as new.
+ * TODO: Implement updating to a new revision, based on difference between
+ * saved and available revisions.
  */
 async function getSrvRecipeStore() {
     if (!await userIsAuthenticated()) {
@@ -1360,7 +1366,8 @@ recipeForm.addEventListener("submit", submitRecipeForm);
 ================================================== */
 
 async function initializeProgram() {
-    checkAuthData();
+    // Wait for authentication data before continuing.
+    await checkAuthData();
     // Risk of causing a hang here, so this should be capped out.
     recipes = await loadRecipes().catch(loadRecipes);
     displayRecipes();
