@@ -453,6 +453,7 @@ async function getSrvAvailRecipes() {
 
 /**
  * Retrieve a given recipe (optionally for a specified revision) from server.
+ * Room for improvement: Add a function to fetch multiple at a time.
  */
 async function getSrvRecipe(recipeId, revision = null) {
     if (!Number.isInteger(recipeId)) {
@@ -511,16 +512,22 @@ async function getSrvRecipeRevisions(recipeId) {
  * Fill in the public revisions for this recipe.
  * TODO: Actually use this.
  */
-function fillRecipeRevisionsFromSrv(recipe) {
+async function fillRecipeRevisionsFromSrv(recipe) {
+    let waitList = [];
     // Note: We only do this for the older public revisions
-    recipe.availRevisions.myRecipes.forEach(async function (revId) {
-        // Check if it is on the current revision
-        if (revId !== recipe.revision) {
+    let fillRevision = async function (revId) {
+        // Check if it is on the current revision, or if we filled it in already.
+        if (revId !== recipe.revision && !recipe.history.has(revId)) {
             // Get the revision
             const revData = await getSrvRecipe(recipe.id, revId);
             recipe.history.set(revId, revData);
         }
+    };
+    recipe.availRevisions.pub.forEach(function (revId) {
+        waitList.push(fillRevision(revId));
     });
+    // Wait for all to finish
+    await Promise.all(waitList);
 }
 
 /**
@@ -574,6 +581,16 @@ async function getSrvRecipeStore() {
     });
     return await Promise.all(serverRecipes);
 }
+
+/**
+ * A new function to be implemented:
+ * It will check through serverAvailRecipes, check against the recipes list.
+ * Compare revisions available. If server revision is newer, we will store the new revision (like updating a recipe, but with predetermined revision IDs), and save the old revision to history.
+ * We also store the new version of availRevisions.
+ *
+ * Idea: Maybe we split submitRecipeForm into 2 functions, with one that stores the new revision, and a wrapper function handling form data.
+ */
+// Implement it here.
 
 /* ==================================================
    SHARED PAGE FUNCTIONS
@@ -1248,6 +1265,9 @@ function getIngredientString(ingredients) {
    DISPLAY PREVIOUS PUBLISHED REVISIONS
 ================================================== */
 
+/**
+ * Fills in the revision history for a recipe.
+ */
 function displayRevisionHistory(recipe) {
     revisionHistory.replaceChildren();
 
