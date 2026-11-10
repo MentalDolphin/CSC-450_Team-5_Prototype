@@ -135,6 +135,19 @@ const unitMapToDisplay = new Map([
 
 const unitDisplayList = new Set(unitMapToDisplay.values());
 
+// This is used for converting units in JSON that is sent to server.
+const unitMapToJson = new Map([
+  ["", null],
+  ["cup", "cup"],
+  ["cups", "cup"],
+  ["teaspoon", "tsp"],
+  ["teaspoons", "tsp"],
+  ["tablespoon", "tbsp"],
+  ["tablespoons", "tbsp"],
+  ["gram", "g"],
+  ["grams", "g"],
+]);
+
 /* ==================================================
    PAGE ELEMENTS
 ================================================== */
