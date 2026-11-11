@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>Submit new recipe</title>
+    <script defer="defer">
+      // This builds the JSON to send to the server.
+      // We use a hardcoded value for testing purposes.
+      let outval = {
+        title: "Lentil Stew",
+        servings: 4,
+        visibility: "private",
+        ingredients: [
+            { name: "lentils", count: "2", unit: "cup" },
+            { name: "vegetable stock", count: "2", unit: "cup" },
+            { name: "tomato paste", count: "1", unit: "tbsp" }
+        ],
+        instructions:
+            "Brown tomato paste in a pot.\n" +
+            "Add remaining ingredients.\n" +
+            "Let simmer for 30 minutes.",
+      };
+      const outJson = JSON.stringify(outval);
+      const submittedInput = document.getElementById("jsonSubmission");
+      const submissionOutput = document.getElementById("jsonSubmissionResult");
+      // Will be a Promise, then the actual value.
+      let serverResponse = null;
+      // Since srvCreateNewRecipe() returns the parsed results of the JSON, we regenerate the JSON for display purposes.
+      let serverResponseJson = null;
+      /**
+       * Validates a recipe before submitting it.
+       */
+      function validateRecipeSubmissionData(recipeData) {
+          let is_valid = true;
+          // TODO: Full implementation
+      }
+      /**
+       * Submits a new recipe to the server.
+       * It will send back its JSON representation of the recipe.
+       */
+      async function srvCreateNewRecipe(recipeData) {
+          let is_valid = validateRecipeSubmissionData(recipeData);
+          // Send data to server
+          const CNR_API_ENDPOINT = "api/create-new-recipe";
+          const cnrHeaders = new Headers();
+          cnrHeaders.append("Content-Type", "application/json; charset=utf-8");
+          const CNR_FETCH_OPTIONS = {
+              method: "POST",
+              headers: cnrHeaders,
+              body: outJson,
+          };
+          const response = await fetch(CNR_API_ENDPOINT, CNR_FETCH_OPTIONS);
+          if (!response.ok) {
+              throw new Error(`API create-new-recipe returned error ${response.status}`);
+          }
+      }
+      document.getElementById.addEventListener("click", async function () {
+          submittedInput.textContent = "I'm not doing anything yet!";
+          return;
+          submittedInput.textContent = outJson;
+          serverResponse = await srvCreateNewRecipe(outJson);
+          submissionOutput.textContent = serverResponse;
+          serverResponseJson = JSON.stringify(serverResponse);
+      });
+    </script>
+  </head>
+  <body>
+    <h1>New Recipe Submission Test</h1>
+    <button id="submitRecipeButton">Submit Recipe to Server</button>
+    <h2>Submitting the following as a recipe:</h2>
+    <p id="jsonSubmission"></p>
+    <h2>The server has stored the following new recipe:</h2>
+    <p id="jsonSubmissionResult"></p>
+  </body>
+</html>
