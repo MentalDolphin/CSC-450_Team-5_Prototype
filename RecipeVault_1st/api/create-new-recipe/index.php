@@ -142,16 +142,18 @@ if (isset($_SESSION["email_address"])) {
     }
 
     $check_uid = 'select UserId from AuthTable where EmailAddr = ?;';
-    $recipe_metadata_check = 'select RecipeId, UserId, IsPublic, LatestPublishedRevisionId, LatestRevisionId from Recipes where RecipeId = ?;';
     $recipe_fetch_data = 'select RecipeId, RecipeRevisionId, JsonBlob from RecipeData where RecipeId = ? and RecipeRevisionId = ?;';
 
     # Prepared data insertion statements
     $recipe_insert_toplevel = 'insert into Recipes(UserId, RecipeName, IsPublic) values (?, ?, ?);';
     # Should be run AFTER lastInsertId()
     $recipe_get_revision_num = 'select recipe_new_revision(?);';
+
     $recipe_insert_data = 'insert into RecipeData(RecipeId, RecipeRevisionId, NumServings, Instructions) values (?, ?, ?, ?);';
+
     $recipe_insert_ingredients = 'insert ignore into Ingredients(IngredientName) values (?);';
     $recipe_insert_ingredient_mapping = 'insert into RecipeIngredients(RecipeId, RecipeRevisionId, IngredientId, IngredientCount, IngredientUnit) values (?, ?, ingredient_id(?), ?, ?);';
+
     $recipe_build_json = 'call build_recipe_json(?, ?);';
     # Mark revisions
     $recipe_mark_latest_overall = 'update Recipes set LatestRevisionId = ? where RecipeId = ?;';
@@ -297,14 +299,6 @@ if (isset($_SESSION["email_address"])) {
                     $outJson = $row["JsonBlob"];
                 }
             }
-        }
-
-        // We now do output.
-        if ($recipe_is_valid == false ||
-            $recipe_rev_is_valid == false ||
-            $recipe_is_allowed == false) {
-            // Return something, although empty to signify no response.
-            $outJson = '{}';
         }
 
         header("HTTP/1.1 200 OK");
