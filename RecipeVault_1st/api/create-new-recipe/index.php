@@ -186,26 +186,73 @@ if (isset($_SESSION["email_address"])) {
 
         // Part 3: Insert recipe data.
         $recipe_data_stmt = $recipe_conn->prepare($recipe_insert_data);
-        // TODO: Fill in the parameters
+        $recipe_data_stmt->bindParam(1, $recipe_id);
+        $recipe_data_stmt->bindParam(2, $recipe_rid);
+        $recipe_data_stmt->bindParam(3, $num_servings);
+        $recipe_data_stmt->bindParam(4, $instructions);
+        $recipe_data_status = $recipe_data_stmt->execute();
 
         // Part 4: Insert recipe ingredients.
         $recipe_ins_ingr_stmt = $recipe_conn->prepare($recipe_insert_ingredients);
-        // TODO: Install the ingredients
+        $recipe_ingredient = null;
+        $recipe_ins_ingr_status = [];
+        // This binds to the parameter *name*.
+        $recipe_ins_ingr_stmt->bindParam(1, $recipe_ingredient);
+        foreach ($inputRecipe["ingredients"] as $ingredient) {
+            $recipe_ingredient = $ingredient["name"];
+            $recipe_ins_ingr_status[] = recipe_ins_ingr_stmt->execute();
+        }
 
         // Part 5: Map the ingredients to the recipe revision.
         $recipe_ingr_map_stmt = $recipe_conn->prepare($recipe_insert_ingredient_mapping);
+        $recipe_ingr_name = null;
+        $recipe_ingr_count = null;
+        $recipe_ingr_unit = null;
+        // These bind to the parameter names.
+        $recipe_ingr_map_stmt->bindParam(1, $recipe_id);
+        $recipe_ingr_map_stmt->bindParam(2, $recipe_rid);
+        // This is ingredient_id(name)
+        $recipe_ingr_map_stmt->bindParam(3, $recipe_ingr_name);
+        $recipe_ingr_map_stmt->bindParam(4, $recipe_ingr_count);
+        $recipe_ingr_map_stmt->bindParam(5, $recipe_ingr_unit);
+        // Go through the list of ingredients again.
+        foreach ($inputRecipe["ingredients"] as $ingredient) {
+            $recipe_ingr_name = $ingredient["name"];
+            $recipe_ingr_count = $ingredient["count"];
+            $recipe_ingr_unit = $ingredient["unit"];
+        }
 
         // Part 6: Build the JSON.
         $recipe_bjson_stmt = $recipe_conn->prepare($recipe_build_json);
+        $recipe_bjson_stmt->bindParam(1, $recipe_id);
+        $recipe_bjson_stmt->bindParam(2, $recipe_rid);
+        $recipe_bjson_status = $recipe_bjson_stmt->execute();
 
         // Part 7: Mark the latest revision.
-        // TODO: Write the code to do this.
+        // TODO: Write the code to do this. This needs to distinguish between public and private.
+        $recipe_latest_overall_stmt = $recipe_conn->prepare($recipe_mark_latest_overall);
+        $recipe_latest_overall_stmt->bindParam(1, $recipe_rid);
+        $recipe_latest_overall_stmt->bindParam(2, $recipe_id);
+        $recipe_latest_overall_status = $recipe_latest_overall_stmt->execute();
+        $recipe_latest_public_status = null;
+        if ($rec_is_public) {
+            $recipe_latest_public_stmt = $recipe_conn->prepare($recipe_mark_latest_public);
+            $recipe_latest_public_stmt->bindParam(1, $recipe_rid);
+            $recipe_latest_public_stmt->bindParam(2, $recipe_id);
+            $recipe_latest_public_status = $recipe_latest_public_stmt->execute();
+        }
 
         // Part 8: We should be good to commit this.
         $commit_status = $recipe_conn->commit();
 
         // Part 9: Send the JSON back.
         // TODO: Refetch the JSON (like api/get-recipe)
+        $recipe_json_refetch = $recipe_conn->prepare($recipe_fetch_data);
+        $recipe_json_refetch->bindParam(1, $recipe_id);
+        $recipe_json_refetch->bindParam(2, $recipe_rid);
+        $recipe_json_refetch_status = $recipe_json_refetch->execute();
+        $recipe_json_refetch_res = $recipe_json_refetch->fetch();
+        $recipe_refetched_json = $recipe_json_refetch_res["JsonBlob"];
 
         // FIXME: This code is disabled, and kept for reference.
         exit;
