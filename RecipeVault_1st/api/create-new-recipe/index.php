@@ -11,40 +11,50 @@ $whyFailed = [];
 
 function recipeInputIsValid($recipeToCheck) {
     $is_valid = true;
+    global $whyInvalid;
     $num_valid_ingredients = 0;
     if (!is_array($recipeToCheck)) {
         // We require an associative array (dict)
         $whyInvalid[] = "NotArray";
+        $is_valid = false;
+//        echo "Not an array.\n";
         return false;
     }
     foreach (["title", "servings", "visibility",
               "ingredients", "instructions"] as $testvalue) {
         // Check if all are present.
-        if (!in_array($testvalue, $recipeToCheck)) {
+//        echo "Checking for key $testvalue\n";
+        if (!array_key_exists($testvalue, $recipeToCheck)) {
             // These values are mandatory.
-            $whyInvalid[] = "Not in array: ".$testvalue;
+            $whyInvalid[] = "Not in array: $testvalue\n";
+            $is_valid = false;
             return false;
         }
     }
     foreach (array_keys($recipeToCheck) as $testKey) {
+//        echo "\n\nRunning iteration on key $testKey...\n";
         switch ($testKey) {
             case "title":
-                if (!is_a($recipeToCheck[$testKey], "string") ||
+                if (!is_string($recipeToCheck[$testKey]) ||
                     strlen($recipeToCheck[$testKey]) > 33) {
                     $is_valid = false;
                     $whyInvalid[] = "Title too long";
+//                    echo "Title invalid\n";
                 }
                 break;
             case "servings":
                 if ($recipeToCheck[$testKey] < 1) {
                     $is_valid = false;
                     $whyInvalid[] = "Servings must be 1 or greater";
+//                    echo "Serving size too small\n";
                 }
-                if ($recipeToCheck[$testKey] != (int)$recipeToCheck) {
+                if ($recipeToCheck[$testKey] != (int)$recipeToCheck[$testKey]) {
                     // Check for floating-point values here.
                     $is_valid = false;
                     $whyInvalid[] = "Servings must be an integer";
+//                    echo "Non-integer serving size\n";
                 }
+                break;
             case "visibility":
                 switch ($recipeToCheck[$testKey]) {
                     case "public":
@@ -53,35 +63,44 @@ function recipeInputIsValid($recipeToCheck) {
                     default:
                         $is_valid = false;
                         $whyInvalid[] = "Visibility must be public or private";
+//                        echo "Visibility $recipeToCheck[$testKey] is invalid\n";
                         break;
                 }
                 break;
             case "ingredients":
                 foreach ($recipeToCheck[$testKey] as $ingredient) {
                     // name (string), count (float), unit (null | string)
-                    if (!is_a($ingredient["name"], "string") ||
+                    $_tmp_igr_name = $ingredient["name"];
+//                    echo "Testing ingredient $_tmp_igr_name...\n";
+                    if (!is_string($ingredient["name"]) ||
                         strlen($ingredient["name"]) > 129) {
                         $is_valid = false;
                         $whyInvalid[] = "Ingredient name must be a string 128 or less characters long";
+//                        echo "Ingredient name too long\n";
                     }
                     if ($ingredient["count"] <= 0) {
                         $is_valid = false;
                         $whyInvalid[] = "Ingredient must have more than 0 of itself";
+//                        echo "Ingredient count must be > 0\n";
                     }
                     if ($ingredient["unit"] != null &&
-                        !is_a($ingredient["unit"], "string") ||
+                        !is_string($ingredient["unit"]) ||
                         strlen($ingredient["unit"]) > 17) {
                         $is_valid = false;
                         $whyInvalid[] = "Ingredient unit must be null or a string 16 characters or less";
+//                        echo "Ingredient unit is invalid\n";
                     }
                 }
                 break;
             case "instructions":
-                if (!is_a($recipeToCheck[$testKey], "string") ||
+                if (!is_string($recipeToCheck[$testKey]) ||
                     strlen($recipeToCheck[$testKey]) > 2049) {
                     $is_valid = false;
-                    $whyInvalid = "Instructions must be a string 2KiB or less";
+                    $whyInvalid[] = "Instructions must be a string 2KiB or less";
+//                    echo "Instructions are invalid\n";
                 }
+                break;
+            default:
                 break;
         }
     }
@@ -129,7 +148,7 @@ if (isset($_SESSION["email_address"])) {
         $rec_is_public = false;
     }
 
-    if (!$recipe_input_valid) {
+    if ($recipe_input_valid == false) {
         header("HTTP/1.1 400 Bad Request");
         header("Content-Type: application/json; charset=utf-8");
         $invalResponseObj = [
@@ -145,7 +164,7 @@ if (isset($_SESSION["email_address"])) {
     $recipe_fetch_data = 'select RecipeId, RecipeRevisionId, JsonBlob from RecipeData where RecipeId = ? and RecipeRevisionId = ?;';
 
     # Prepared data insertion statements
-    $recipe_insert_toplevel = 'insert into Recipes(UserId, RecipeName, IsPublic) values (?, ?, ?);';
+    $recipe_insert_toplevel = 'insert into Recipes(UserId, RecipeName, IsPublic) values (:uid, :renam, :ispub);';
     # Should be run AFTER lastInsertId()
     $recipe_get_revision_num = 'select recipe_new_revision(?);';
 
@@ -173,11 +192,12 @@ if (isset($_SESSION["email_address"])) {
 
         // Part 2: Insert the toplevel Recipe record.
         $toplvl_stmt = $recipe_conn->prepare($recipe_insert_toplevel);
-        $toplvl_stmt->bindParam(1, $uid);
-        $toplvl_stmt->bindParam(2, $inputRecipe["title"]);
-        $toplvl_stmt->bindParam(3, $rec_is_public);
+        $toplvl_stmt->bindParam('uid', $uid);
+        $toplvl_stmt->bindParam('renam', $inputRecipe["title"]);
+        // Work around a bug: Sometimes it thinks this is null.
+        $toplvl_stmt->bindValue('ispub', $rec_is_public? '1' : '0');
         $toplvl_status = $toplvl_stmt->execute();
-        if (!toplvl_status) {
+        if (!$toplvl_status) {
             // We failed to insert it.
             $recipe_creation_success = false;
             $whyFailed[] = "Failed to insert toplevel data";
@@ -189,7 +209,7 @@ if (isset($_SESSION["email_address"])) {
         $recipe_rid_stmt = $recipe_conn->prepare($recipe_get_revision_num);
         $recipe_rid_stmt->bindParam(1, $recipe_id);
         $recipe_rid_status = $recipe_rid_stmt->execute();
-        if (!recipe_rid_status) {
+        if (!$recipe_rid_status) {
             // We failed to get recipe revision ID.
             $recipe_creation_success = false;
             $whyFailed[] = "Failed to get new recipe revision";
@@ -200,12 +220,14 @@ if (isset($_SESSION["email_address"])) {
 
         // Part 3: Insert recipe data.
         $recipe_data_stmt = $recipe_conn->prepare($recipe_insert_data);
+        $num_servings = $inputRecipe["servings"];
+        $instructions = $inputRecipe["instructions"];
         $recipe_data_stmt->bindParam(1, $recipe_id);
         $recipe_data_stmt->bindParam(2, $recipe_rid);
         $recipe_data_stmt->bindParam(3, $num_servings);
         $recipe_data_stmt->bindParam(4, $instructions);
         $recipe_data_status = $recipe_data_stmt->execute();
-        if (!recipe_data_status) {
+        if (!$recipe_data_status) {
             // We failed to insert revision-specific data
             $recipe_creation_success = false;
             $whyFailed[] = "Failed to insert revision data (RecipeData)";
@@ -320,9 +342,6 @@ if (isset($_SESSION["email_address"])) {
         $recipe_json_refetch_res = $recipe_json_refetch->fetch();
         $recipe_refetched_json = $recipe_json_refetch_res["JsonBlob"];
 
-        // FIXME: This code is disabled, and kept for reference.
-        exit;
-
         FailedCreationShortcut:
         if (!$recipe_creation_success) {
             $outJson = [
@@ -343,6 +362,7 @@ if (isset($_SESSION["email_address"])) {
         echo $outJson;
 
     } catch (PDOException $exc) {
+        header('HTTP/1.1 500 Internal Server Error');
         header('Content-Type: text/plain; charset=utf-8');
         echo $exc->getMessage();
         exit;
