@@ -146,6 +146,12 @@ grant select, update, insert, delete on RecipeVault.Recipes to serverrecipe@loca
 grant select, update, insert, delete on RecipeVault.RecipeData to serverrecipe@localhost;
 grant select, update, insert, delete on RecipeVault.Ingredients to serverrecipe@localhost;
 grant select, update, insert, delete on RecipeVault.RecipeIngredients to serverrecipe@localhost;
+-- Allows using the functions and procedures
+grant execute on function RecipeVault.recipe_new_revision to serverrecipe@localhost;
+grant execute on function RecipeVault.recipe_latest_revision to serverrecipe@localhost;
+grant execute on function RecipeVault.ingredient_id to serverrecipe@localhost;
+grant execute on function RecipeVault.lookup_user to serverrecipe@localhost;
+grant execute on procedure RecipeVault.build_recipe_json to serverrecipe@localhost;
 
 -- Reset tables without dropping them
 -- To reset tables, run: `truncate table TableName;` (requires drop privileges)

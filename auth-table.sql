@@ -69,3 +69,6 @@ call add_user('janedoe@example.com', 'Password02');
 create user serverauth@localhost identified by 'FILL_ME_PLEASE';
 
 grant select, update, insert, delete on RecipeVault.AuthTable to serverauth@localhost;
+grant execute on procedure RecipeVault.add_user to serverauth@localhost;
+grant execute on procedure RecipeVault.check_pass to serverauth@localhost;
+grant execute on function RecipeVault.lookup_user to serverauth@localhost;
