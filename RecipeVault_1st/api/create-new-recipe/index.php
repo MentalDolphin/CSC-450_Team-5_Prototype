@@ -6,6 +6,8 @@ require("../../auth.php");
 // Notes the reasons why it is invalid.
 // Empty is valid.
 $whyInvalid = [];
+// Notes the reasons why it failed.
+$whyFailed = [];
 
 function recipeInputIsValid($recipeToCheck) {
     $is_valid = true;
@@ -87,9 +89,6 @@ function recipeInputIsValid($recipeToCheck) {
 }
 
 if (isset($_SESSION["email_address"])) {
-    $recipeId = $_GET["id"];
-    $recipeRevId = $_GET["revid"];
-
     require("../../private/do-recipe-dbconn.php");
 
 //    // Enable for testing, and comment out the line setting output to application/json
@@ -98,7 +97,7 @@ if (isset($_SESSION["email_address"])) {
     if (strtoupper($_SERVER["REQUEST_METHOD"]) != "POST") {
         header("HTTP/1.1 405 Method Not Allowed");
         header("Content-Type: application/json; charset=utf-8");
-        echo '{"invalidRequest": true,"methodRequired":"post"}';
+        echo '{"invalidRequest":true,"methodRequired":"post"}';
         exit;
     }
 
@@ -107,7 +106,7 @@ if (isset($_SESSION["email_address"])) {
     if ($inputRecipeJson == false) {
         header("HTTP/1.1 400 Bad Request");
         header("Content-Type: application/json; charset=utf-8");
-        echo '{"invalidRequest":true,"requiresJsonResponse:true}';
+        echo '{"invalidRequest":true,"requiresJsonResponse":true}';
         exit;
     }
 
@@ -121,6 +120,7 @@ if (isset($_SESSION["email_address"])) {
 
     // We need to validate the recipe first.
     $recipe_input_valid = recipeInputIsValid($inputRecipe);
+    $recipe_creation_success = true;
 
     $rec_is_public = null;
     if ($inputRecipe["visibility"] == "public") {
@@ -177,12 +177,24 @@ if (isset($_SESSION["email_address"])) {
         $toplvl_stmt->bindParam(2, $inputRecipe["title"]);
         $toplvl_stmt->bindParam(3, $rec_is_public);
         $toplvl_status = $toplvl_stmt->execute();
+        if (!toplvl_status) {
+            // We failed to insert it.
+            $recipe_creation_success = false;
+            $whyFailed[] = "Failed to insert toplevel data";
+            goto FailedCreationShortcut;
+        }
 
         // Now we get the important data.
         $recipe_id = $recipe_conn->lastInsertId();
         $recipe_rid_stmt = $recipe_conn->prepare($recipe_get_revision_num);
         $recipe_rid_stmt->bindParam(1, $recipe_id);
         $recipe_rid_status = $recipe_rid_stmt->execute();
+        if (!recipe_rid_status) {
+            // We failed to get recipe revision ID.
+            $recipe_creation_success = false;
+            $whyFailed[] = "Failed to get new recipe revision";
+            goto FailedCreationShortcut;
+        }
         // The only parameter from the select query.
         $recipe_rid = $recipe_rid_stmt->fetch()[0];
 
@@ -193,6 +205,12 @@ if (isset($_SESSION["email_address"])) {
         $recipe_data_stmt->bindParam(3, $num_servings);
         $recipe_data_stmt->bindParam(4, $instructions);
         $recipe_data_status = $recipe_data_stmt->execute();
+        if (!recipe_data_status) {
+            // We failed to insert revision-specific data
+            $recipe_creation_success = false;
+            $whyFailed[] = "Failed to insert revision data (RecipeData)";
+            goto FailedCreationShortcut;
+        }
 
         // Part 4: Insert recipe ingredients.
         $recipe_ins_ingr_stmt = $recipe_conn->prepare($recipe_insert_ingredients);
@@ -202,7 +220,8 @@ if (isset($_SESSION["email_address"])) {
         $recipe_ins_ingr_stmt->bindParam(1, $recipe_ingredient);
         foreach ($inputRecipe["ingredients"] as $ingredient) {
             $recipe_ingredient = $ingredient["name"];
-            $recipe_ins_ingr_status[] = recipe_ins_ingr_stmt->execute();
+            $recipe_ins_ingr_item_status = $recipe_ins_ingr_stmt->execute();
+            $recipe_ins_ingr_status[] = $recipe_ins_ingr_item_status;
         }
 
         // Part 5: Map the ingredients to the recipe revision.
@@ -217,11 +236,25 @@ if (isset($_SESSION["email_address"])) {
         $recipe_ingr_map_stmt->bindParam(3, $recipe_ingr_name);
         $recipe_ingr_map_stmt->bindParam(4, $recipe_ingr_count);
         $recipe_ingr_map_stmt->bindParam(5, $recipe_ingr_unit);
+        $recipe_ingr_map_status = [];
         // Go through the list of ingredients again.
         foreach ($inputRecipe["ingredients"] as $ingredient) {
             $recipe_ingr_name = $ingredient["name"];
             $recipe_ingr_count = $ingredient["count"];
             $recipe_ingr_unit = $ingredient["unit"];
+            $recipe_map_ingr_item_status = $recipe_ingr_map_stmt->execute();
+            $recipe_ingr_map_status[] = $recipe_map_ingr_item_status;
+            if (!$recipe_map_ingr_item_status) {
+                $recipe_creation_success = false;
+            }
+        }
+        if (!$recipe_creation_success) {
+            // We failed to set up the mappings.
+            $whyFailed[] = [
+                "failedItem" => "ingredients",
+                "failureList" => $recipe_ingr_map_status
+            ];
+            goto FailedCreationShortcut;
         }
 
         // Part 6: Build the JSON.
@@ -229,6 +262,12 @@ if (isset($_SESSION["email_address"])) {
         $recipe_bjson_stmt->bindParam(1, $recipe_id);
         $recipe_bjson_stmt->bindParam(2, $recipe_rid);
         $recipe_bjson_status = $recipe_bjson_stmt->execute();
+        if (!$recipe_bjson_status) {
+            // We failed to build the JSON
+            $recipe_creation_success = false;
+            $whyFailed[] = "Failed to build recipe JSON";
+            goto FailedCreationShortcut;
+        }
 
         // Part 7: Mark the latest revision.
         // TODO: Write the code to do this. This needs to distinguish between public and private.
@@ -236,16 +275,31 @@ if (isset($_SESSION["email_address"])) {
         $recipe_latest_overall_stmt->bindParam(1, $recipe_rid);
         $recipe_latest_overall_stmt->bindParam(2, $recipe_id);
         $recipe_latest_overall_status = $recipe_latest_overall_stmt->execute();
+        if (!$recipe_latest_overall_status) {
+            $recipe_creation_success = false;
+            $whyFailed[] = "Failed to set latest revision ID";
+            goto FailedCreationShortcut;
+        }
         $recipe_latest_public_status = null;
         if ($rec_is_public) {
             $recipe_latest_public_stmt = $recipe_conn->prepare($recipe_mark_latest_public);
             $recipe_latest_public_stmt->bindParam(1, $recipe_rid);
             $recipe_latest_public_stmt->bindParam(2, $recipe_id);
             $recipe_latest_public_status = $recipe_latest_public_stmt->execute();
+            if (!$recipe_latest_public_status) {
+                $recipe_creation_success = false;
+                $whyFailed[] = "Failed to set latest published revision ID";
+                goto FailedCreationShortcut;
+            }
         }
 
         // Part 8: We should be good to commit this.
         $commit_status = $recipe_conn->commit();
+        if (!$commit_status) {
+            $recipe_creation_success = false;
+            $whyFailed[] = "Failed to commit recipe";
+            goto FailedCreationShortcut;
+        }
 
         // Part 9: Send the JSON back.
         // TODO: Refetch the JSON (like api/get-recipe)
@@ -253,57 +307,39 @@ if (isset($_SESSION["email_address"])) {
         $recipe_json_refetch->bindParam(1, $recipe_id);
         $recipe_json_refetch->bindParam(2, $recipe_rid);
         $recipe_json_refetch_status = $recipe_json_refetch->execute();
+        if (!$recipe_json_refetch_status) {
+            $recipe_creation_success = false;
+            $whyFailed[] = "Failed to refetch recipe";
+            goto FailedCreationShortcut;
+        } else if ($recipe_json_refetch->rowCount() != 1) {
+            $recipe_creation_success = false;
+            $recipe_refetch_count = $recipe_json_refetch->rowCount();
+            $whyFailed[] = "Wrong number of recipes ($recipe_refetch_count)";
+            goto FailedCreationShortcut;
+        }
         $recipe_json_refetch_res = $recipe_json_refetch->fetch();
         $recipe_refetched_json = $recipe_json_refetch_res["JsonBlob"];
 
         // FIXME: This code is disabled, and kept for reference.
         exit;
-        if ($rec_meta_stmt->rowCount() == 1) {
-            // Here we handle it.
-            $recipe_is_valid = true;
-            $recipe_data = $rec_meta_stmt->fetch();
-            $rec_uid = $recipe_data["UserId"];
-            $rec_is_public = $recipe_data["IsPublic"];
-            $rec_latest_public = $recipe_data["LatestPublishedRevisionId"];
-            $rec_latest = $recipe_data["LatestRevisionId"];
 
-            if ($rec_uid != $uid && $rec_is_public == false) {
-                // Private recipe we don't own
-                // We could consider 1 of the 2: Pretend like it doesn't exist, or
-                // give a 403 Forbidden error and signal that it is not accessible.
-                $recipe_is_allowed = false;
-            } else if ($rec_uid != $uid && $recipeRevId > $rec_latest_public) {
-                // We are trying to access a version we aren't allowed to.
-                $recipe_is_allowed = false;
-            } else {
-                // Part 3: Get the recipe for the given revision.
-                if ($rec_uid == $uid) {
-                    if ($recipeRevId == null) {
-                        // Default to latest revision
-                        $recipeRevId = $rec_latest;
-                    }
-                } else {
-                    if ($recipeRevId == null) {
-                        // Default to latest public revision
-                        $recipeRevId = $rec_latest_public;
-                    }
-                }
-                $rec_fetch_stmt = $recipe_conn->prepare($recipe_fetch_data);
-                $rec_fetch_stmt->bindParam(1, $recipeId);
-                $rec_fetch_stmt->bindParam(2, $recipeRevId);
-
-                $rec_fetch_stmt_status = $rec_fetch_stmt->execute();
-                if ($rec_fetch_stmt->rowCount() == 1) {
-                    $recipe_rev_is_valid = true;
-                    $row = $rec_fetch_stmt->fetch();
-                    $outJson = $row["JsonBlob"];
-                }
-            }
+        FailedCreationShortcut:
+        if (!$recipe_creation_success) {
+            $outJson = [
+                "creationSuccess" => false,
+                "failureReasons" => $whyFailed,
+            ];
+            header("HTTP/1.1 500 Internal Server Error");
+            header("Content-Type: application/json; charset=utf-8");
+            $recipe_conn->rollBack();
+            echo $outJson;
+            exit;
         }
 
-        header("HTTP/1.1 200 OK");
+        header("HTTP/1.1 201 Created");
         header("Content-Type: application/json; charset=utf-8");
 
+        $outJson = $recipe_refetched_json;
         echo $outJson;
 
     } catch (PDOException $exc) {

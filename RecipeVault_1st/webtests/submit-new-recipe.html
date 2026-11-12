@@ -5,14 +5,14 @@
     <script defer="defer">
       // This builds the JSON to send to the server.
       // We use a hardcoded value for testing purposes.
-      let outval = {
+      const outval = {
         title: "Lentil Stew",
         servings: 4,
         visibility: "private",
         ingredients: [
-            { name: "lentils", count: "2", unit: "cup" },
-            { name: "vegetable stock", count: "2", unit: "cup" },
-            { name: "tomato paste", count: "1", unit: "tbsp" }
+            { name: "lentils", count: 2, unit: "cup" },
+            { name: "vegetable stock", count: 2, unit: "cup" },
+            { name: "tomato paste", count: 1, unit: "tbsp" }
         ],
         instructions:
             "Brown tomato paste in a pot.\n" +
@@ -31,7 +31,31 @@
        */
       function validateRecipeSubmissionData(recipeData) {
           let is_valid = true;
-          // TODO: Full implementation
+          // The immediate descendants of the object
+          let layer_1_is_valid = typeof recipeData.title === "string" &&
+                                 typeof recipeData.instructions === "string" &&
+                                 Array.isArray(recipeData.ingredients)
+                                 Number.isInteger(recipeData.servings) &&
+                                 recipeData.servings >= 1 &&
+                                 recipeData.servings <= 1000 &&
+                                 ["public", "private"].includes(recipeData.visibility);
+          let layer_2_is_valid = true;
+          if (layer_1_is_valid) {
+              // The next layer down (just the ingredients list)
+              recipeData.forEach(function (ingrItem, ind, arr) {
+                  layer_2_is_valid = (layer_2_is_valid &&
+                                      typeof ingrItem.name === "string" &&
+                                      Number.isInteger(ingrItem.count) &&
+                                      (typeof ingrItem.unit === "string" ||
+                                       ingrItem.unit === null));
+              });
+              if (!layer_2_is_valid) {
+                  is_valid = false;
+              }
+          } else {
+              is_valid = false;
+          }
+          return is_valid;
       }
       /**
        * Submits a new recipe to the server.
@@ -40,26 +64,35 @@
       async function srvCreateNewRecipe(recipeData) {
           let is_valid = validateRecipeSubmissionData(recipeData);
           // Send data to server
+          if (!is_valid) {
+              console.error("Recipe data failed validation");
+          }
           const CNR_API_ENDPOINT = "api/create-new-recipe";
           const cnrHeaders = new Headers();
           cnrHeaders.append("Content-Type", "application/json; charset=utf-8");
           const CNR_FETCH_OPTIONS = {
               method: "POST",
               headers: cnrHeaders,
-              body: outJson,
+              body: JSON.stringify(recipeData),
           };
           const response = await fetch(CNR_API_ENDPOINT, CNR_FETCH_OPTIONS);
           if (!response.ok) {
-              throw new Error(`API create-new-recipe returned error ${response.status}`);
+              let errBody = null;
+              if (response.body) {
+                  errBody = await response.text();
+              }
+              throw new Error(`API create-new-recipe returned error ${response.status}, body: ${errBody}`);
           }
+          const responseData = await response.json();
+          return responseData;
       }
       document.getElementById.addEventListener("click", async function () {
           submittedInput.textContent = "I'm not doing anything yet!";
           return;
           submittedInput.textContent = outJson;
           serverResponse = await srvCreateNewRecipe(outJson);
-          submissionOutput.textContent = serverResponse;
           serverResponseJson = JSON.stringify(serverResponse);
+          submissionOutput.textContent = serverResponseJson;
       });
     </script>
   </head>
