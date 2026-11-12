@@ -378,7 +378,7 @@ function resetTimer(timerObj) {
  */
 async function checkAuthData() {
     try {
-        const response = await fetch("api/get-authdata");
+        const response = await fetch("api/get-authdata/");
         if (!response.ok) {
             throw new Error(`API get-authdata returned error ${response.status}`);
         }
@@ -406,7 +406,7 @@ async function checkAuthData() {
  */
 async function userIsAuthenticated() {
     try {
-        const response = await fetch("api/get-authdata");
+        const response = await fetch("api/get-authdata/");
         if (!response.ok) {
             throw new Error(`API get-authdata returned error ${response.status}`);
         }
@@ -425,7 +425,7 @@ async function userIsAuthenticated() {
 async function getSrvAvailRecipes() {
     try {
         // Download new data
-        const response = await fetch("api/get-available-recipes");
+        const response = await fetch("api/get-available-recipes/");
         if (response.status === 403) {
             console.log("getSrvAvailRecipes: Session expired");
         } else if (!response.ok) {
@@ -475,7 +475,7 @@ async function getSrvRecipe(recipeId, revision = null) {
     if (revision !== null && !Number.isInteger(revision)) {
         throw new Error(`getSrvRecipe: Parameter revision (value ${revision}) must be null or number (type ${typeof revision}`);
     }
-    let apiCallUrl = `api/get-recipe?id=${recipeId}`;
+    let apiCallUrl = `api/get-recipe/?id=${recipeId}`;
     if (revision !== null) {
         apiCallUrl += `&revid=${revision}`;
     }
@@ -504,7 +504,7 @@ async function getSrvRecipeRevisions(recipeId) {
         throw new Error(`getSrvRecipe: Parameter recipeId (value ${recipeId}) is not a number (type ${typeof recipeId})`);
     }
 
-    let apiCallUrl = `api/get-recipe-revisions?id=${recipeId}`;
+    let apiCallUrl = `api/get-recipe-revisions/?id=${recipeId}`;
     try {
         const response = await fetch(apiCallUrl);
         if (response.status === 403) {

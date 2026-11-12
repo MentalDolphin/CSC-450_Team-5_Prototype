@@ -2,6 +2,15 @@
 <html>
   <head>
     <title>Submit new recipe</title>
+  </head>
+  <body>
+    <h1>New Recipe Submission Test</h1>
+    <button id="submitRecipeButton">Submit Recipe to Server</button>
+    <h2>Submitting the following as a recipe:</h2>
+    <p id="jsonSubmission"></p>
+    <h2>The server has stored the following new recipe:</h2>
+    <p id="jsonSubmissionResult"></p>
+    <!-- Placed here so that it sees everything. -->
     <script defer="defer">
       // This builds the JSON to send to the server.
       // We use a hardcoded value for testing purposes.
@@ -22,6 +31,7 @@
       const outJson = JSON.stringify(outval);
       const submittedInput = document.getElementById("jsonSubmission");
       const submissionOutput = document.getElementById("jsonSubmissionResult");
+      const submitButton = document.getElementById("submitRecipeButton");
       // Will be a Promise, then the actual value.
       let serverResponse = null;
       // Since srvCreateNewRecipe() returns the parsed results of the JSON, we regenerate the JSON for display purposes.
@@ -34,7 +44,7 @@
           // The immediate descendants of the object
           let layer_1_is_valid = typeof recipeData.title === "string" &&
                                  typeof recipeData.instructions === "string" &&
-                                 Array.isArray(recipeData.ingredients)
+                                 Array.isArray(recipeData.ingredients) &&
                                  Number.isInteger(recipeData.servings) &&
                                  recipeData.servings >= 1 &&
                                  recipeData.servings <= 1000 &&
@@ -42,7 +52,7 @@
           let layer_2_is_valid = true;
           if (layer_1_is_valid) {
               // The next layer down (just the ingredients list)
-              recipeData.forEach(function (ingrItem, ind, arr) {
+              recipeData.ingredients.forEach(function (ingrItem, ind, arr) {
                   layer_2_is_valid = (layer_2_is_valid &&
                                       typeof ingrItem.name === "string" &&
                                       Number.isInteger(ingrItem.count) &&
@@ -66,8 +76,10 @@
           // Send data to server
           if (!is_valid) {
               console.error("Recipe data failed validation");
+              return;
           }
-          const CNR_API_ENDPOINT = "api/create-new-recipe";
+          // Needs to reference ../ because we are in a subdirectory.
+          const CNR_API_ENDPOINT = "../api/create-new-recipe/";
           const cnrHeaders = new Headers();
           cnrHeaders.append("Content-Type", "application/json; charset=utf-8");
           const CNR_FETCH_OPTIONS = {
@@ -86,22 +98,14 @@
           const responseData = await response.json();
           return responseData;
       }
-      document.getElementById.addEventListener("click", async function () {
+      submitButton.addEventListener("click", async function () {
           submittedInput.textContent = "I'm not doing anything yet!";
-          return;
+//          return;
           submittedInput.textContent = outJson;
-          serverResponse = await srvCreateNewRecipe(outJson);
+          serverResponse = await srvCreateNewRecipe(outval);
           serverResponseJson = JSON.stringify(serverResponse);
           submissionOutput.textContent = serverResponseJson;
       });
     </script>
-  </head>
-  <body>
-    <h1>New Recipe Submission Test</h1>
-    <button id="submitRecipeButton">Submit Recipe to Server</button>
-    <h2>Submitting the following as a recipe:</h2>
-    <p id="jsonSubmission"></p>
-    <h2>The server has stored the following new recipe:</h2>
-    <p id="jsonSubmissionResult"></p>
   </body>
 </html>
