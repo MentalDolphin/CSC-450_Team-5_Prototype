@@ -63,12 +63,3 @@ insert into AuthTable(EmailAddr, PassHash, Salt) values
 
 -- Add second test user
 call add_user('janedoe@example.com', 'Password02');
-
--- Set up auth user
--- Note: Please fill in the password (where it says FILL_ME_PLEASE), and use it for authentication in private/do-login-dbconn.php
-create user serverauth@localhost identified by 'FILL_ME_PLEASE';
-
-grant select, update, insert, delete on RecipeVault.AuthTable to serverauth@localhost;
-grant execute on procedure RecipeVault.add_user to serverauth@localhost;
-grant execute on procedure RecipeVault.check_pass to serverauth@localhost;
-grant execute on function RecipeVault.lookup_user to serverauth@localhost;
