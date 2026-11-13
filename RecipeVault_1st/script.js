@@ -270,7 +270,41 @@ function copyData(data) {
     return JSON.parse(JSON.stringify(data, jsonRecipeReplacer), jsonRecipeReviver);
 }
 
+/**
+ * Validates data for recipe submission format.
+ */
+function validateRecipeSubmissionData(recipeData) {
+    let is_valid = true;
+    // The immediate descendants of the object
+    let layer_1_is_valid = typeof recipeData.title === "string" &&
+                           typeof recipeData.instructions === "string" &&
+                           Array.isArray(recipeData.ingredients) &&
+                           Number.isInteger(recipeData.servings) &&
+                           recipeData.servings >= 1 &&
+                           recipeData.servings <= 1000 &&
+                           ["public", "private"].includes(recipeData.visibility);
+    let layer_2_is_valid = true;
+    if (layer_1_is_valid) {
+        // The next layer down (just the ingredients list)
+        recipeData.ingredients.forEach(function (ingrItem, ind, arr) {
+            layer_2_is_valid = (layer_2_is_valid &&
+                                typeof ingrItem.name === "string" &&
+                                Number.isInteger(ingrItem.count) &&
+                                (typeof ingrItem.unit === "string" ||
+                                 ingrItem.unit === null));
+        });
+        if (!layer_2_is_valid) {
+            is_valid = false;
+        }
+    } else {
+        is_valid = false;
+    }
+    return is_valid;
+}
 
+/**
+ * Validates stored format of recipe.
+ */
 function isValidStoredRecipe(recipe) {
     if (recipe === null || typeof recipe !== "object") {
         return false;
@@ -519,6 +553,38 @@ async function getSrvRecipeRevisions(recipeId) {
     } catch (error) {
         console.log(`getSrvRecipeRevisions (recipeId: ${recipeId}): ` + error.message);
     }
+}
+
+/**
+ * Submits a new recipe to the server.
+ * It will send back its JSON representation of the recipe.
+ */
+async function srvCreateNewRecipe(recipeData) {
+    let is_valid = validateRecipeSubmissionData(recipeData);
+    // Send data to server
+    if (!is_valid) {
+        console.error("Recipe data failed validation");
+        return;
+    }
+    // Needs to reference ../ because we are in a subdirectory.
+    const CNR_API_ENDPOINT = "api/create-new-recipe/";
+    const cnrHeaders = new Headers();
+    cnrHeaders.append("Content-Type", "application/json; charset=utf-8");
+    const CNR_FETCH_OPTIONS = {
+        method: "POST",
+        headers: cnrHeaders,
+        body: JSON.stringify(recipeData),
+    };
+    const response = await fetch(CNR_API_ENDPOINT, CNR_FETCH_OPTIONS);
+    if (!response.ok) {
+        let errBody = null;
+        if (response.body) {
+            errBody = await response.text();
+        }
+        throw new Error(`API create-new-recipe returned error ${response.status}, body: ${errBody}`);
+    }
+    const responseData = await response.json();
+    return responseData;
 }
 
 /**
