@@ -567,7 +567,6 @@ async function srvCreateNewRecipe(recipeData) {
         console.error("Recipe data failed validation");
         return;
     }
-    // Needs to reference ../ because we are in a subdirectory.
     const CNR_API_ENDPOINT = "api/create-new-recipe/";
     const cnrHeaders = new Headers();
     cnrHeaders.append("Content-Type", "application/json; charset=utf-8");
@@ -583,6 +582,37 @@ async function srvCreateNewRecipe(recipeData) {
             errBody = await response.text();
         }
         throw new Error(`API create-new-recipe returned error ${response.status}, body: ${errBody}`);
+    }
+    const responseData = await response.json();
+    return responseData;
+}
+
+/**
+ * Submits a new revision of an existing recipe to the server.
+ * It will send back its JSON representation of the new recipe revision.
+ */
+async function srvUpdateRecipe(recipeData) {
+    let is_valid = validateRecipeSubmissionData(recipeData, true);
+    // Send data to server
+    if (!is_valid) {
+        console.error("Recipe data failed validation");
+        return;
+    }
+    const CNR_API_ENDPOINT = "api/update-recipe/";
+    const cnrHeaders = new Headers();
+    cnrHeaders.append("Content-Type", "application/json; charset=utf-8");
+    const CNR_FETCH_OPTIONS = {
+        method: "POST",
+        headers: cnrHeaders,
+        body: JSON.stringify(recipeData),
+    };
+    const response = await fetch(CNR_API_ENDPOINT, CNR_FETCH_OPTIONS);
+    if (!response.ok) {
+        let errBody = null;
+        if (response.body) {
+            errBody = await response.text();
+        }
+        throw new Error(`API update-recipe returned error ${response.status}, body: ${errBody}`);
     }
     const responseData = await response.json();
     return responseData;
