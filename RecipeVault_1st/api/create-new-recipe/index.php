@@ -344,12 +344,13 @@ if (isset($_SESSION["email_address"])) {
 
         FailedCreationShortcut:
         if (!$recipe_creation_success) {
-            $outJson = [
+            $outObj = [
                 "creationSuccess" => false,
                 "failureReasons" => $whyFailed,
             ];
             header("HTTP/1.1 500 Internal Server Error");
             header("Content-Type: application/json; charset=utf-8");
+            $outJson = json_encode($outObj);
             $recipe_conn->rollBack();
             echo $outJson;
             exit;

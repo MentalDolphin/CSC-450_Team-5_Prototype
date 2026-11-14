@@ -273,10 +273,11 @@ function copyData(data) {
 /**
  * Validates data for recipe submission format.
  */
-function validateRecipeSubmissionData(recipeData) {
+function validateRecipeSubmissionData(recipeData, hasId = false) {
     let is_valid = true;
     // The immediate descendants of the object
-    let layer_1_is_valid = typeof recipeData.title === "string" &&
+    let layer_1_is_valid = (hasId === true? Number.isInteger(recipeData.id) : true) &&
+                           typeof recipeData.title === "string" &&
                            typeof recipeData.instructions === "string" &&
                            Array.isArray(recipeData.ingredients) &&
                            Number.isInteger(recipeData.servings) &&

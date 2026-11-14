@@ -175,9 +175,6 @@ if (isset($_SESSION["email_address"])) {
 
     $recipe_id = $inputRecipe["id"];
 
-    // FIXME: I need to implement this all the way.
-    exit;
-
     $check_uid = 'select UserId from AuthTable where EmailAddr = ?;';
     $recipe_metadata_check = 'select RecipeId, UserId, IsPublic, LatestPublishedRevisionId, LatestRevisionId from Recipes where RecipeId = ?;';
     $recipe_fetch_data = 'select RecipeId, RecipeRevisionId, JsonBlob from RecipeData where RecipeId = ? and RecipeRevisionId = ?;';
@@ -208,7 +205,7 @@ if (isset($_SESSION["email_address"])) {
 
         // Part 2: Validate the recipe ID and check user ID
         $recipe_id_stmt = $recipe_conn->prepare($recipe_metadata_check);
-        $recipe_id_stmt->bindParam(1, $recipe_id_req);
+        $recipe_id_stmt->bindParam(1, $recipe_id);
         $recipe_id_stmt_status = $recipe_id_stmt->execute();
         if ($recipe_id_stmt->rowCount() == 1) {
             $recipe_existing_data = $recipe_id_stmt->fetch();
@@ -385,12 +382,13 @@ if (isset($_SESSION["email_address"])) {
 
         FailedCreationShortcut:
         if (!$recipe_creation_success) {
-            $outJson = [
+            $outObj = [
                 "creationSuccess" => false,
                 "failureReasons" => $whyFailed,
             ];
             header("HTTP/1.1 500 Internal Server Error");
             header("Content-Type: application/json; charset=utf-8");
+            $outJson = json_encode($outObj);
             if ($in_transaction) {
                 $recipe_conn->rollBack();
             }
