@@ -668,12 +668,14 @@ async function fillRecipeRevisionsFromSrv(recipe) {
         const revData = await getSrvRecipe(recipe.id, revId);
         recipe.history.set(revId, revData);
     };
-    recipe.availRevisions.pub.forEach(function (revId) {
-        // Check if it is on the current revision, or if we filled it in already.
-        if (revId !== recipe.revision && !recipe.history.has(revId)) {
-            waitList.push(fillRevision(revId));
-        }
-    });
+    if (recipe.availRevisions.pub) {
+        recipe.availRevisions.pub.forEach(function (revId) {
+            // Check if it is on the current revision, or if we filled it in already.
+            if (revId !== recipe.revision && !recipe.history.has(revId)) {
+                waitList.push(fillRevision(revId));
+            }
+        });
+    }
     if (waitList.length > 0) {
         // Wait for all to finish
         await Promise.all(waitList);
@@ -747,8 +749,12 @@ async function srvGetMissingRecipeIds(savedRecipes) {
     let idReader = function (recDescObj, i, a) {
         serverAvailSet.add(recDescObj.id);
     };
-    serverAvailRecipes.myRecipes.forEach(idReader);
-    serverAvailRecipes.otherPublicRecipes.forEach(idReader);
+    if (serverAvailRecipes.myRecipes) {
+        serverAvailRecipes.myRecipes.forEach(idReader);
+    }
+    if (serverAvailRecipes.otherPublicRecipes) {
+        serverAvailRecipes.otherPublicRecipes.forEach(idReader);
+    }
 //    Set(serverAvailRecipes.myRecipes.concat(serverAvailRecipes.otherPublicRecipes));
     let localSavedSet = new Set();
     savedRecipes.forEach(function (recDescObj, i, a) {
@@ -845,8 +851,12 @@ async function srvCheckForNewRecipeRevisions(recipeSet) {
     const fillServerRevisionMapping = function (recDescObj, i, a) {
         serverLatestRevisions.set(recDescObj.id, recDescObj.latestRevision);
     };
-    serverAvailRecipes.myRecipes.forEach(fillServerRevisionMapping);
-    serverAvailRecipes.otherPublicRecipes.forEach(fillServerRevisionMapping);
+    if (serverAvailRecipes.myRecipes) {
+        serverAvailRecipes.myRecipes.forEach(fillServerRevisionMapping);
+    }
+    if (serverAvailRecipes.otherPublicRecipes) {
+        serverAvailRecipes.otherPublicRecipes.forEach(fillServerRevisionMapping);
+    }
     recipeStoredRevisions.forEach(function (latestStoredRevId, recipeId, m) {
         if (serverLatestRevisions.get(recipeId) > latestStoredRevId) {
             // We need to pull a new revision
