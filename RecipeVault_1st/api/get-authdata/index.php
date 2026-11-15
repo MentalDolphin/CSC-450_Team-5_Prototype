@@ -12,6 +12,7 @@ if (isset($_SESSION["email_address"])) {
 $authdata = [
   "userDisplayName" => null,
   "sessionIsValid" => $acctValid,
+  "uid" => $_SESSION["uid"],
   "email" => $_SESSION["email_address"]
 ];
 

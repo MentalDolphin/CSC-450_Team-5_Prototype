@@ -357,7 +357,19 @@ async function loadRecipes() {
             throw new Error("Invalid saved recipe data.");
         }
 
-        return savedRecipes;
+        if (IS_ONLINE_MODE) {
+            let missingRecipeItems = await srvGetMissingRecipeIds(savedRecipes);
+            if (missingRecipeItems.size > 0) {
+                // There are missing recipes in the set
+                let newRecipeData = await srvGetMissingRecipes(savedRecipes);
+                console.log("Saving newly fetched recipes...");
+                console.log(newRecipeData);
+                saveRecipes(newRecipeData);
+                return newRecipeData;
+            }
+        } else {
+            return savedRecipes;
+        }
     } catch (error) {
         showStatus(
             "Saved recipes could not be loaded. Sample recipes are shown."
@@ -421,14 +433,27 @@ async function checkAuthData() {
         const result = await response.json();
         const savedMetadataStr = localStorage.getItem(STORAGE_META_KEY);
         const savedMetadata = JSON.parse(savedMetadataStr);
+        if (Number.isInteger(result.uid)) {
+            // Needed to check CURRENT_AUTHOR if not fully reloading sources.
+            CURRENT_AUTHOR = result.uid;
+        }
         if (savedMetadataStr === null) {
             localStorage.setItem(STORAGE_META_KEY, JSON.stringify(result));
         } else if (result.sessionIsValid === false) {
             // Refresh to pull up login page
             console.log("Credentials expired");
             location.replace("login");
-        } else if (result.email !== savedMetadata.email) {
+        } else if (!savedMetadata.uid && result.email !== savedMetadata.email) {
+            // If savedMetadata.uid is not saved, we use email to check for user change.
             console.log(`Saved email ${savedMetadata.email} is not the same as current user email ${result.email}, clearing storage.`);
+            localStorage.clear();
+        } else if (!savedMetadata.uid) {
+            // We should write in the new UID field for our reference
+            localStorage.setItem(STORAGE_META_KEY, JSON.stringify(result));
+        } else if (result.uid !== savedMetadata.uid) {
+            // UID should be present from this commit onwards in api/get-authdata.
+            // We use it to check for user changes, to allow for email changes.
+            console.log(`Saved email ${savedMetadata.uid} is not the same as current user email ${result.uid}, clearing storage.`);
             localStorage.clear();
         }
     } catch (error) {
@@ -620,7 +645,6 @@ async function srvUpdateRecipe(recipeData) {
 
 /**
  * Fill in the public revisions for this recipe.
- * TODO: Actually use this.
  */
 async function fillRecipeRevisionsFromSrv(recipe) {
     let waitList = [];
@@ -693,6 +717,23 @@ async function getSrvRecipeStore() {
 }
 
 /**
+ * Gets IDs of missing recipes. Fetches available recipes from server if needed.
+ */
+async function srvGetMissingRecipeIds(savedRecipes) {
+    if (serverAvailRecipes === null) {
+        serverAvailRecipes = await getSrvAvailRecipes();
+    }
+    // We convert to a set to enable easy comparisons.
+    let serverAvailSet = new Set(serverAvailRecipes.myRecipes.concat(serverAvailRecipes.otherPublicRecipes));
+    let localSavedSet = new Set();
+    savedRecipes.forEach(function (recDescObj, i, a) {
+        // We are collecting the locally saved recipes.
+        localSavedSet.add(recDescObj.id);
+    });
+    return serverAvailSet.difference(localSavedSet);
+}
+
+/**
  * A new function to be implemented:
  * It will check through serverAvailRecipes, check against the recipes list.
  * Compare revisions available. If server revision is newer, we will store the new revision (like updating a recipe, but with predetermined revision IDs), and save the old revision to history.
@@ -700,7 +741,32 @@ async function getSrvRecipeStore() {
  *
  * Idea: Maybe we split submitRecipeForm into 2 functions, with one that stores the new revision, and a wrapper function handling form data.
  */
-// Implement it here.
+async function srvGetMissingRecipes(savedRecipes) {
+    let fillRecipe = async function (recDescObj, index, arr) {
+        let latestRecipeData = await getSrvRecipe(recDescObj.id);
+        let recipeRevisionData = await getSrvRecipeRevisions(recDescObj.id);
+        // Fill in the availRevisions and history fields
+        latestRecipeData.availRevisions = recipeRevisionData;
+        // We fill in the "history" field as-needed
+        latestRecipeData.history = new Map();
+        savedRecipes.push(latestRecipeData);
+    };
+    // Tracks progress of downloading recipes.
+    let dlTracker = [];
+    const recipesToFetch = await srvGetMissingRecipeIds(savedRecipes);
+    recipesToFetch.forEach(function (recDescObj, k, s) {
+        // We need to download the items for these given objects.
+        console.log(`srvGetMissingRecipes: Downloading recipe ${recId}`);
+        dlTracker.push(fillRecipe(recDescObj, k, s));
+    });
+    // Don't return until we are finished.
+    if (dlTracker.length > 0) {
+        await Promise.all(dlTracker);
+        // Sort recipe list ascending by recipe ID
+        savedRecipes.sort((a, b) => {return a.id - b.id;});
+    }
+    return savedRecipes;
+}
 
 /* ==================================================
    SHARED PAGE FUNCTIONS
@@ -1158,7 +1224,7 @@ function validateRecipeForm(formData) {
    SAVE A NEW OR EDITED RECIPE
 ================================================== */
 
-function submitRecipeForm(event) {
+async function submitRecipeForm(event) {
     event.preventDefault();
 
     const formData = getRecipeFormData();
@@ -1200,35 +1266,80 @@ function submitRecipeForm(event) {
 
         recipeToUpdate.history.set(recipeToUpdate.revision, previousRevision);
 
-        recipeToUpdate.title = formData.title;
-        recipeToUpdate.servings = formData.servings;
-        recipeToUpdate.visibility = formData.visibility;
-        recipeToUpdate.ingredients = formData.ingredients;
-        recipeToUpdate.instructions = formData.instructions;
-
-        recipeToUpdate.revision += 1;
-        if (recipeToUpdate.visibility === 'public') {
-            recipeToUpdate.availRevisions.pub.push(recipeToUpdate.revision);
+        // TODO: Push new revision to server here.
+        if (IS_ONLINE_MODE) {
+            // Push the data to server and wait for it to arrive.
+            const dataReturned = await srvUpdateRecipe({
+                id: recipeToUpdate.id,
+                title: formData.title,
+                servings: formData.servings,
+                // Note for future improvement: This controls whether this
+                // specific revision is published. We can possibly keep a given
+                // revision private for a recipe which is already public by
+                // marking that revision as private.
+                visibility: formData.visibility,
+                ingredients: formData.ingredients,
+                instructions: formData.instructions,
+            });
+            // Now we move it to the newly set recipe that got returned.
+            recipeToUpdate.title = dataReturned.title;
+            recipeToUpdate.servings = dataReturned.servings;
+            recipeToUpdate.visibility = dataReturned.visibility;
+            recipeToUpdate.ingredients = dataReturned.ingredients;
+            recipeToUpdate.instructions = dataReturned.instructions;
+            recipeToUpdate.revision = dataReturned.revision;
+            // We need to refetch this data because making a revision public
+            // causes previous revisions to go public.
+            recipeToUpdate.availRevisions = await getSrvRecipeRevisions(dataReturned.id);
         } else {
-            recipeToUpdate.availRevisions.priv.push(recipeToUpdate.revision);
+            recipeToUpdate.title = formData.title;
+            recipeToUpdate.servings = formData.servings;
+            recipeToUpdate.visibility = formData.visibility;
+            recipeToUpdate.ingredients = formData.ingredients;
+            recipeToUpdate.instructions = formData.instructions;
+            recipeToUpdate.revision += 1;
+            if (recipeToUpdate.visibility === 'public') {
+                recipeToUpdate.availRevisions.pub.push(recipeToUpdate.revision);
+            } else {
+                recipeToUpdate.availRevisions.priv.push(recipeToUpdate.revision);
+            }
         }
     } else {
-        const newRecipe = {
-            // We need an integer ID here.
-            id: Math.floor(Math.random() * 65535),
-            authorId: CURRENT_AUTHOR,
-            title: formData.title,
-            servings: formData.servings,
-            visibility: formData.visibility,
-            ingredients: formData.ingredients,
-            instructions: formData.instructions,
-            revision: 1,
-            availRevisions: {
-                pub: (formData.visibility === "public")? [1] : null,
-                priv: (formData.visibility === "private")? [1] : null
-            },
-            history: new Map()
-        };
+        if (IS_ONLINE_MODE) {
+            let newRecipe = await srvCreateNewRecipe({
+                title: formData.title,
+                servings: formData.servings,
+                visibility: formData.visibility,
+                ingredients: formData.ingredients,
+                instructions: formData.instructions,
+            });
+            // The server adds in the id, authorId, revision properties.
+            // We need to add in availRevisions, and history.
+            // This assumes server returns valid data.
+            // Should we fetch from the server on a fresh recipe?
+            newRecipe.availRevisions = {
+                pub: (formData.visibility === "public")? [newRecipe.revision] : null,
+                priv: (formData.visibility === "private")? [newRecipe.revision] : null
+            };
+            newRecipe.history = new Map();
+        } else {
+            const newRecipe = {
+                // We need an integer ID here.
+                id: Math.floor(Math.random() * 65535),
+                authorId: CURRENT_AUTHOR,
+                title: formData.title,
+                servings: formData.servings,
+                visibility: formData.visibility,
+                ingredients: formData.ingredients,
+                instructions: formData.instructions,
+                revision: 1,
+                availRevisions: {
+                    pub: (formData.visibility === "public")? [1] : null,
+                    priv: (formData.visibility === "private")? [1] : null
+                },
+                history: new Map()
+            };
+        }
         updatedRecipes.push(newRecipe);
     }
 
@@ -1378,13 +1489,14 @@ function getIngredientString(ingredients) {
 /**
  * Fills in the revision history for a recipe.
  */
-function displayRevisionHistory(recipe) {
+async function displayRevisionHistory(recipe) {
     revisionHistory.replaceChildren();
 
     revisionHistorySection.hidden = recipe.history.length === 0;
 
-    // FIXME: Change this to ensure all revisions are present.
-    // Do we need async here?
+    // This should ensure all revisions are present.
+    // It backfills older revisions.
+    await fillRecipeRevisionsFromSrv(recipe);
     recipe.history.forEach(function (revision, revId, revMap) {
         if (revision.visibility === "private") {
             // This only displays public revisions.
