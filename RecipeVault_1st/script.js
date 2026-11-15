@@ -260,7 +260,8 @@ function jsonRecipeReplacer(k, v) {
 function jsonRecipeReviver(k, v, context) {
     if (k === "history" && typeof(v) === "object") {
         // We need to convert it to a Map.
-        return new Map(Object.entries(v));
+        // We also need to convert the key to an integer.
+        return new Map(Object.entries(v).map((inval) => [Number(inval[0]), inval[1]]));
     } else {
         return v;
     }
@@ -358,6 +359,13 @@ async function loadRecipes() {
         }
 
         if (IS_ONLINE_MODE) {
+            let didRevisionUpdate = await srvCheckForNewRecipeRevisions(savedRecipes);
+            let needsToSave = false;
+            if (didRevisionUpdate) {
+                // We downloaded new revisions.
+                needsToSave = true;
+                console.log("Found later revisions of recipes, scheduling data save...");
+            }
             let missingRecipeItems = await srvGetMissingRecipeIds(savedRecipes);
             if (missingRecipeItems.size > 0) {
                 // There are missing recipes in the set
@@ -366,6 +374,12 @@ async function loadRecipes() {
                 console.log(newRecipeData);
                 saveRecipes(newRecipeData);
                 return newRecipeData;
+            } else {
+                if (needsToSave) {
+                    console.log("Saving updated recipe revisions...");
+                    saveRecipes(savedRecipes);
+                }
+                return savedRecipes;
             }
         } else {
             return savedRecipes;
@@ -520,7 +534,7 @@ async function getSrvAvailRecipes() {
         const result = await response.json();
         return result;
     } catch (error) {
-        console.log("getSrvAvailRecipes: " + error.message);
+        console.error("getSrvAvailRecipes: " + error.message);
     }
 }
 
@@ -551,7 +565,7 @@ async function getSrvRecipe(recipeId, revision = null) {
         const result = await response.json();
         return result;
     } catch (error) {
-        console.log(`getSrvRecipe (recipeId: ${recipeId}, rev.: ${revision}): ` + error.message);
+        console.error(`getSrvRecipe (recipeId: ${recipeId}, rev.: ${revision}): ` + error.message);
     }
 }
 
@@ -577,7 +591,7 @@ async function getSrvRecipeRevisions(recipeId) {
         return {pub: result.publicRevisions,
                 priv: result.privateRevisions};
     } catch (error) {
-        console.log(`getSrvRecipeRevisions (recipeId: ${recipeId}): ` + error.message);
+        console.error(`getSrvRecipeRevisions (recipeId: ${recipeId}): ` + error.message);
     }
 }
 
@@ -650,18 +664,23 @@ async function fillRecipeRevisionsFromSrv(recipe) {
     let waitList = [];
     // Note: We only do this for the older public revisions
     let fillRevision = async function (revId) {
-        // Check if it is on the current revision, or if we filled it in already.
-        if (revId !== recipe.revision && !recipe.history.has(revId)) {
-            // Get the revision
-            const revData = await getSrvRecipe(recipe.id, revId);
-            recipe.history.set(revId, revData);
-        }
+        // Get the revision
+        const revData = await getSrvRecipe(recipe.id, revId);
+        recipe.history.set(revId, revData);
     };
     recipe.availRevisions.pub.forEach(function (revId) {
-        waitList.push(fillRevision(revId));
+        // Check if it is on the current revision, or if we filled it in already.
+        if (revId !== recipe.revision && !recipe.history.has(revId)) {
+            waitList.push(fillRevision(revId));
+        }
     });
-    // Wait for all to finish
-    await Promise.all(waitList);
+    if (waitList.length > 0) {
+        // Wait for all to finish
+        await Promise.all(waitList);
+        return true;
+    } else {
+        return false;
+    }
 }
 
 /**
@@ -724,7 +743,13 @@ async function srvGetMissingRecipeIds(savedRecipes) {
         serverAvailRecipes = await getSrvAvailRecipes();
     }
     // We convert to a set to enable easy comparisons.
-    let serverAvailSet = new Set(serverAvailRecipes.myRecipes.concat(serverAvailRecipes.otherPublicRecipes));
+    let serverAvailSet = new Set();
+    let idReader = function (recDescObj, i, a) {
+        serverAvailSet.add(recDescObj.id);
+    };
+    serverAvailRecipes.myRecipes.forEach(idReader);
+    serverAvailRecipes.otherPublicRecipes.forEach(idReader);
+//    Set(serverAvailRecipes.myRecipes.concat(serverAvailRecipes.otherPublicRecipes));
     let localSavedSet = new Set();
     savedRecipes.forEach(function (recDescObj, i, a) {
         // We are collecting the locally saved recipes.
@@ -768,6 +793,73 @@ async function srvGetMissingRecipes(savedRecipes) {
     return savedRecipes;
 }
 
+/**
+ * Updates a currently-stored recipe to the latest revision on the server.
+ */
+async function srvUpdateRecipeRevision(recipe) {
+    const previousRevision = {
+        title: recipe.title,
+        servings: recipe.servings,
+        ingredients: recipe.ingredients,
+        instructions: recipe.instructions,
+        visibility: recipe.visibility,
+        revision: recipe.revision
+    };
+
+    recipe.history.set(recipe.revision, previousRevision);
+
+    const dataReturned = await getSrvRecipe(recipe.id);
+    // Now fill in the new recipe.
+
+    // Now we move it to the newly set recipe that got returned.
+    recipe.title = dataReturned.title;
+    recipe.servings = dataReturned.servings;
+    recipe.visibility = dataReturned.visibility;
+    recipe.ingredients = dataReturned.ingredients;
+    recipe.instructions = dataReturned.instructions;
+    recipe.revision = dataReturned.revision;
+    // We need to refetch this data because making a revision public
+    // causes previous revisions to go public.
+    recipe.availRevisions = await getSrvRecipeRevisions(dataReturned.id);
+
+}
+
+/**
+ * Checks for revision updates for the recipes
+ */
+async function srvCheckForNewRecipeRevisions(recipeSet) {
+    if (serverAvailRecipes === null) {
+        serverAvailRecipes = await getSrvAvailRecipes();
+    }
+    // Tracks downloads of new recipe revision updates.
+    let dlTracker = [];
+    let updateRecipe = async function (recipe) {
+        await srvUpdateRecipeRevision(recipe);
+    };
+    // This should pull currently stored versions
+    let recipeStoredRevisions = new Map(recipeSet.map((item) => [item.id, item.revision]));
+    // Used to conveniently index the recipes.
+    let recipeMapping = new Map(recipeSet.map((item) => [item.id, item]));
+    // Stores revisions available on the server.
+    let serverLatestRevisions = new Map();
+    const fillServerRevisionMapping = function (recDescObj, i, a) {
+        serverLatestRevisions.set(recDescObj.id, recDescObj.latestRevision);
+    };
+    serverAvailRecipes.myRecipes.forEach(fillServerRevisionMapping);
+    serverAvailRecipes.otherPublicRecipes.forEach(fillServerRevisionMapping);
+    recipeStoredRevisions.forEach(function (latestStoredRevId, recipeId, m) {
+        if (serverLatestRevisions.get(recipeId) > latestStoredRevId) {
+            // We need to pull a new revision
+            dlTracker.push(updateRecipe(recipeMapping.get(recipeId)));
+        }
+    });
+    if (dlTracker.length > 0) {
+        await Promise.all(dlTracker);
+        return true;
+    } else {
+        return false;
+    }
+}
 /* ==================================================
    SHARED PAGE FUNCTIONS
 ================================================== */
@@ -1153,8 +1245,8 @@ function getRecipeFormData() {
     const ingredientRows = document.querySelectorAll(".ingredient-row");
     const ingredientsArray = Array.from(ingredientRows).map(function (row) {
         return {
-            count: row.querySelector(".ingredientAmount").value.trim(),
-            unit: row.querySelector(".ingredientUnit").value.trim(),
+            count: Number(row.querySelector(".ingredientAmount").value.trim()),
+            unit: unitMapToJson.get(row.querySelector(".ingredientUnit").value.trim()),
             name: row.querySelector(".ingredientName").value.trim()
         }
     })
@@ -1496,7 +1588,15 @@ async function displayRevisionHistory(recipe) {
 
     // This should ensure all revisions are present.
     // It backfills older revisions.
-    await fillRecipeRevisionsFromSrv(recipe);
+    let filledNewRevisions = await fillRecipeRevisionsFromSrv(recipe);
+    if (filledNewRevisions) {
+        // We should save the new JSON if it already exists.
+        if (localStorage.getItem(STORAGE_KEY) !== null) {
+            // We already have locally-saved data.
+            console.log(`New revisions downloaded for recipe ${recipe.id}, saving data`);
+            saveRecipes(recipes);
+        }
+    }
     recipe.history.forEach(function (revision, revId, revMap) {
         if (revision.visibility === "private") {
             // This only displays public revisions.
