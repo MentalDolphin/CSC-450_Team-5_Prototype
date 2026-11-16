@@ -273,6 +273,19 @@ if (isset($_SESSION['email_address'])) {
         <section id="recipeDetailsSection" hidden>
 
             <p id="recipeDetailsSummary"></p>
+            <div id="servingControls">
+                <h2>Yield: </h2>
+                <button class="secondary-button" data-multiplier="0.25"
+                    onclick="setServing(this)">1/4</button>
+                <button class="secondary-button" data-multiplier="0.5"
+                    onclick="setServing(this)">1/2</button>
+                <button data-multiplier="1"
+                    onclick="setServing(this)">1x</button>
+                <button class="secondary-button" data-multiplier="2"
+                    onclick="setServing(this)">2x</button>
+                <button class="secondary-button" data-multiplier="4"
+                    onclick="setServing(this)">4x</button>
+            </div>
 
             <h2>Ingredients</h2>
             <p id="recipeDetailsIngredients" class="multiline-text"></p>
