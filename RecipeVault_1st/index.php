@@ -274,7 +274,7 @@ if (isset($_SESSION['email_address'])) {
 
             <p id="recipeDetailsSummary"></p>
             <div id="servingControls">
-                <h2>Yield: </h2>
+                <h3>Yield: </h3>
                 <button class="secondary-button" data-multiplier="0.25"
                     onclick="setServing(this)">1/4</button>
                 <button class="secondary-button" data-multiplier="0.5"
