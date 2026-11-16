@@ -135,6 +135,42 @@ if (isset($_SESSION['email_address'])) {
 
             <h2 id="resultsHeading">Available Recipes</h2>
 
+            <fieldset class="recipe-filters">
+                <legend>Sort and filter recipes</legend>
+                <div class="filter-controls">
+                    <div>
+                        <label for="recipeSort">Sort by</label>
+                        <select id="recipeSort">
+                            <option value="default">Default order</option>
+                            <option value="title-asc">Recipe name: A–Z</option>
+                            <option value="title-desc">Recipe name: Z–A</option>
+                            <option value="servings-asc">Servings: low to high</option>
+                            <option value="servings-desc">Servings: high to low</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label for="visibilityFilter">Visibility</label>
+                        <select id="visibilityFilter">
+                            <option value="all">All available recipes</option>
+                            <option value="public">Public recipes</option>
+                            <option value="private">My private recipes</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label for="servingsFilter">Serving size</label>
+                        <select id="servingsFilter">
+                            <option value="all">Any serving size</option>
+                            <option value="1-2">1–2 servings</option>
+                            <option value="3-4">3–4 servings</option>
+                            <option value="5-plus">5 or more servings</option>
+                        </select>
+                    </div>
+                    <button id="resetFiltersButton" type="button"
+                        class="secondary-button">Reset Filters</button>
+                </div>
+                <p class="help-text">Applies to the current search. Reset Filters keeps your search; Show All clears both.</p>
+            </fieldset>
+
             <p id="recipeCount"></p>
 
             <div id="recipeCards" class="recipe-grid"></div>

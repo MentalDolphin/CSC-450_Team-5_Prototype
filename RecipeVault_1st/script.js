@@ -177,6 +177,9 @@ const advancedSearchError = document.getElementById("advancedSearchError");
 const resultsHeading = document.getElementById("resultsHeading");
 const recipeCount = document.getElementById("recipeCount");
 const recipeCards = document.getElementById("recipeCards");
+const recipeSort = document.getElementById("recipeSort");
+const visibilityFilter = document.getElementById("visibilityFilter");
+const servingsFilter = document.getElementById("servingsFilter");
 
 const recipeForm = document.getElementById("recipeForm");
 const formError = document.getElementById("formError");
@@ -221,6 +224,10 @@ let editingRecipeId = null;
 let selectedRecipeId = null;
 
 let showingMyRecipes = false;
+
+// Remember the submitted search when sorting or filtering its results.
+let activeSearchTerm = "";
+let activeIngredientTerms = [];
 
 // Marker of what recipes to fetch
 let serverAvailRecipes = null;
@@ -937,7 +944,24 @@ function openRecipeList(onlyMyRecipes = false) {
 }
 
 
+function resetRecipeFilters() {
+    recipeSort.value = "default";
+    visibilityFilter.value = "all";
+    servingsFilter.value = "all";
+}
+
+function refreshRecipeFilters() {
+    // Controls can be used before the initial server request finishes.
+    if (!Array.isArray(recipes)) {
+        return;
+    }
+    displayRecipes(activeSearchTerm, activeIngredientTerms);
+    showStatus(recipeCount.textContent);
+}
+
 function displayRecipes(searchTerm = "", ingredientTerms = []) {
+    activeSearchTerm = searchTerm;
+    activeIngredientTerms = [...ingredientTerms];
     recipeCards.replaceChildren();
 
     const normalizedSearch = searchTerm.trim().toLowerCase();
@@ -969,8 +993,48 @@ function displayRecipes(searchTerm = "", ingredientTerms = []) {
             })
             : matchesName || matchesIngredient;
 
-        return accessible && belongsInCollection && matchesSearch;
+        const matchesVisibility = visibilityFilter.value === "all" ||
+            recipe.visibility === visibilityFilter.value;
+
+        let matchesServings = true;
+        switch (servingsFilter.value) {
+            case "1-2":
+                matchesServings = recipe.servings >= 1 && recipe.servings <= 2;
+                break;
+            case "3-4":
+                matchesServings = recipe.servings >= 3 && recipe.servings <= 4;
+                break;
+            case "5-plus":
+                matchesServings = recipe.servings >= 5;
+                break;
+        }
+
+        return accessible && belongsInCollection && matchesSearch &&
+            matchesVisibility && matchesServings;
     });
+
+    // Sort the filtered copy, leaving the stored recipe order unchanged.
+    const compareNames = function (a, b) {
+        return a.title.localeCompare(b.title, "en", { sensitivity: "base", numeric: true });
+    };
+    switch (recipeSort.value) {
+        case "title-asc":
+            matchingRecipes.sort(compareNames);
+            break;
+        case "title-desc":
+            matchingRecipes.sort(function (a, b) { return compareNames(b, a); });
+            break;
+        case "servings-asc":
+            matchingRecipes.sort(function (a, b) {
+                return a.servings - b.servings || compareNames(a, b);
+            });
+            break;
+        case "servings-desc":
+            matchingRecipes.sort(function (a, b) {
+                return b.servings - a.servings || compareNames(a, b);
+            });
+            break;
+    }
 
     if (ingredientTerms.length > 0) {
         resultsHeading.textContent = "Recipes containing all: " + ingredientTerms.join(", ");
@@ -988,7 +1052,7 @@ function displayRecipes(searchTerm = "", ingredientTerms = []) {
     if (matchingRecipes.length === 0) {
         const emptyMessage = createTextElement(
             "p",
-            "No matching recipes were found.",
+            "No matching recipes were found. Try changing your search or resetting the filters.",
             "empty-message"
         );
 
@@ -1680,8 +1744,18 @@ document.getElementById("addRecipeButton")
 
 document.getElementById("showAllButton")
     .addEventListener("click", function () {
+        resetRecipeFilters();
         openRecipeList(showingMyRecipes);
     });
+
+[recipeSort, visibilityFilter, servingsFilter].forEach(function (control) {
+    control.addEventListener("change", refreshRecipeFilters);
+});
+
+document.getElementById("resetFiltersButton").addEventListener("click", function () {
+    resetRecipeFilters();
+    refreshRecipeFilters();
+});
 
 
 document.getElementById("cancelButton")
