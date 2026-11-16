@@ -742,7 +742,9 @@ async function getSrvRecipeStore() {
         // This resolves to the filled-out recipe.
         serverRecipes.push(fillRecipe(recDescObj, i, a));
     });
-    return await Promise.all(serverRecipes);
+    let outval = await Promise.all(serverRecipes);
+    // Sort stored recipes by Recipe ID, for consistency with srvGetMissingRecipes()
+    return outval.sort((a, b) => {return a.id - b.id;});
 }
 
 /**
