@@ -222,6 +222,7 @@ const revisionHistory = document.getElementById("revisionHistory");
 let editingRecipeId = null;
 
 let selectedRecipeId = null;
+let originalServings = 1;
 
 let showingMyRecipes = false;
 
@@ -1620,6 +1621,7 @@ function openRecipeDetails(recipeId) {
     }
 
     selectedRecipeId = recipeId;
+    originalServings = selectedRecipe.servings;
 
     showStatus("");
     showSection(recipeDetailsSection, selectedRecipe.title);
@@ -1646,7 +1648,43 @@ function getIngredientString(ingredients) {
             ingredient.name;
     }).join("\n");
     return ingredientsString;
-} 
+}
+
+function setServing(button) {
+    const selectedRecipe = recipes.find(function (recipe) {
+        return recipe.id === selectedRecipeId;
+    });
+
+    if (!selectedRecipe) return;
+
+    const multiplier = Number(button.dataset.multiplier);
+    const adjustedServings = selectedRecipe.servings * multiplier;
+
+    detailsSummary.textContent =
+        adjustedServings + " servings | " +
+        selectedRecipe.visibility + " | Revision " +
+        selectedRecipe.revision;
+
+    const adjustedIngredients = selectedRecipe.ingredients.map(
+        function (ingredient) {
+            return {
+                ...ingredient,
+                count: ingredient.count * multiplier
+            };
+        }
+    );
+
+    detailsIngredients.textContent =
+        getIngredientString(adjustedIngredients);
+
+    document.querySelectorAll("#servingControls button")
+        .forEach(function (btn) {
+            btn.classList.toggle(
+                "secondary-button",
+                btn !== button
+            );
+        });
+}
 
 /* ==================================================
    DISPLAY PREVIOUS PUBLISHED REVISIONS
