@@ -172,6 +172,35 @@ textarea {
     min-width: 0;
 }
 
+/* Sorting and filtering use the same controls as the recipe forms. */
+.recipe-filters {
+    margin: 20px 0;
+    padding: 16px;
+    background-color: white;
+    border: 1px solid #cad4c8;
+    border-radius: 8px;
+}
+
+.recipe-filters legend {
+    font-weight: bold;
+}
+
+.filter-controls {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    gap: 12px;
+}
+
+.filter-controls > div {
+    flex: 1 1 200px;
+    min-width: 0;
+}
+
+.filter-controls label {
+    margin-top: 0;
+}
+
 #recipeFormSection,
 #recipeDetailsSection {
     padding: 24px;
