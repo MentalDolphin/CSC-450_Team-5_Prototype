@@ -339,7 +339,7 @@ if (isset($_SESSION["email_address"])) {
                 $whyFailed[] = "Failed to set latest published revision ID";
                 goto FailedCreationShortcut;
             }
-            
+
             if ($rec_is_public == true && $recipe_currently_public == false) {
                 // We need to mark it as public.
                 $recipe_mark_public_stmt = $recipe_conn->prepare($recipe_mark_toplevel_public);
