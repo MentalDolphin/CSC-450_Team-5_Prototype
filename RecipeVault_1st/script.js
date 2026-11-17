@@ -1474,8 +1474,9 @@ async function submitRecipeForm(event) {
             }
         }
     } else {
+        let newRecipe = null;
         if (IS_ONLINE_MODE) {
-            let newRecipe = await srvCreateNewRecipe({
+            newRecipe = await srvCreateNewRecipe({
                 title: formData.title,
                 servings: formData.servings,
                 visibility: formData.visibility,
@@ -1492,7 +1493,7 @@ async function submitRecipeForm(event) {
             };
             newRecipe.history = new Map();
         } else {
-            const newRecipe = {
+            newRecipe = {
                 // We need an integer ID here.
                 id: Math.floor(Math.random() * 65535),
                 authorId: CURRENT_AUTHOR,
